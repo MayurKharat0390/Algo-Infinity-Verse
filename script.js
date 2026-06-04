@@ -810,8 +810,13 @@ const practiceProblems = [
     tags: ["Arrays", "Hash Table"],
     acceptance: "48.2%",
     category: "arrays",
-    description: "Given an array of integers nums and an integer target, return indices of the two numbers that add up to target. You may assume exactly one solution exists, and you may not use the same element twice. Return the answer in any order.",
-    constraints: ["2 ≤ nums.length ≤ 10⁴", "-10⁹ ≤ nums[i] ≤ 10⁹", "Only one valid answer exists"],
+    description:
+      "Given an array of integers nums and an integer target, return indices of the two numbers that add up to target. You may assume exactly one solution exists, and you may not use the same element twice. Return the answer in any order.",
+    constraints: [
+      "2 ≤ nums.length ≤ 10⁴",
+      "-10⁹ ≤ nums[i] ≤ 10⁹",
+      "Only one valid answer exists",
+    ],
     followUp: "Can you solve it in O(n) time complexity?",
   },
   {
@@ -821,8 +826,12 @@ const practiceProblems = [
     tags: ["Strings", "Stack"],
     acceptance: "40.2%",
     category: "strings",
-    description: "Given a string s containing just the characters '(', ')', '{', '}', '[' and ']', determine if the input string is valid. A string is valid if every open bracket is closed by the same type of bracket in the correct order.",
-    constraints: ["1 ≤ s.length ≤ 10⁴", "s consists of parentheses only '()[]{}'"],
+    description:
+      "Given a string s containing just the characters '(', ')', '{', '}', '[' and ']', determine if the input string is valid. A string is valid if every open bracket is closed by the same type of bracket in the correct order.",
+    constraints: [
+      "1 ≤ s.length ≤ 10⁴",
+      "s consists of parentheses only '()[]{}'",
+    ],
     followUp: "Can you solve it in O(n) time and O(n) space?",
   },
   {
@@ -975,7 +984,7 @@ let userProgress = {
   avatar: "🚀",
   completedProblems: [],
 
-  favoriteProblems: [],//here i have added a new property to store the user's favorite problems
+  favoriteProblems: [], //here i have added a new property to store the user's favorite problems
   recentProblems: [], //here i have added a new property to store the user's recent problems
 
   favoriteProblems: [], //here i have added a new property to store the user's favorite problems
@@ -1308,23 +1317,23 @@ document.addEventListener("click", (e) => {
 function getTopicProgress(topicName) {
   // Map topic names to category keys used in practiceProblems
   const categoryMap = {
-      "Arrays": "arrays",
-      "Strings": "strings",
-      "Linked List": "linkedlist",
-      "Trees": "trees",
-      "Graphs": "graphs",
-      "Dynamic Programming": "dp"
+    Arrays: "arrays",
+    Strings: "strings",
+    "Linked List": "linkedlist",
+    Trees: "trees",
+    Graphs: "graphs",
+    "Dynamic Programming": "dp",
   };
 
   const category = categoryMap[topicName];
   if (!category) return { completed: 0, total: 0, percentage: 0 };
 
-  const topicProblems = practiceProblems.filter(p => p.category === category);
+  const topicProblems = practiceProblems.filter((p) => p.category === category);
   const total = topicProblems.length;
   if (total === 0) return { completed: 0, total: 0, percentage: 0 };
 
-  const completed = topicProblems.filter(p =>
-      userProgress.completedProblems.includes(p.id)
+  const completed = topicProblems.filter((p) =>
+    userProgress.completedProblems.includes(p.id),
   ).length;
 
   const percentage = Math.round((completed / total) * 100);
@@ -1346,26 +1355,26 @@ function initTopicOfTheDay() {
   const topic = getDailyTopic();
   if (!topic) return;
 
-  document.getElementById('totdIcon').textContent = topic.icon;
-  document.getElementById('totdTitle').textContent = topic.name;
-  document.getElementById('totdDesc').textContent = topic.description;
+  document.getElementById("totdIcon").textContent = topic.icon;
+  document.getElementById("totdTitle").textContent = topic.name;
+  document.getElementById("totdDesc").textContent = topic.description;
 
-  const diffEl = document.getElementById('totdDifficulty');
+  const diffEl = document.getElementById("totdDifficulty");
   diffEl.textContent = topic.difficulty;
   diffEl.className = `totd-difficulty difficulty-badge ${getDifficultyClass(topic.difficulty)}`;
 
   const progress = getTopicProgress(topic.name);
-  document.getElementById('totdProblems').textContent =
-      `${progress.completed}/${progress.total} solved`;
+  document.getElementById("totdProblems").textContent =
+    `${progress.completed}/${progress.total} solved`;
 
-  document.getElementById('totdBtn').addEventListener('click', () => {
-      openTopicModal(topic);
+  document.getElementById("totdBtn").addEventListener("click", () => {
+    openTopicModal(topic);
   });
 }
 
 function initTopicsSection() {
   const topicsGrid = document.querySelector(".topics-grid");
-  topicsGrid.innerHTML = '';
+  topicsGrid.innerHTML = "";
   dsaTopics.forEach((topic, index) => {
     const card = document.createElement("div");
     card.className = "topic-card animate-in";
@@ -1835,7 +1844,7 @@ function renderProblems(filter = "all", searchQuery = "") {
   // Count updation functionality
   const visibleCountEl = document.getElementById("visible-count");
   const totalCountEl = document.getElementById("total-count");
-  
+
   if (visibleCountEl && totalCountEl) {
     visibleCountEl.textContent = filteredProblems.length;
     totalCountEl.textContent = practiceProblems.length;
@@ -1859,8 +1868,8 @@ data-id="${problem.id}">
      </button>
 
                <button class="notes-btn ${
-                userProgress.problemNotes[problem.id] ? "active" : ""
-              }" data-id="${problem.id}">
+                 userProgress.problemNotes[problem.id] ? "active" : ""
+               }" data-id="${problem.id}">
                  <i class="fas fa-sticky-note"></i>
                </button>
 
@@ -1955,33 +1964,33 @@ function initRoadmap() {
 
 // ===== PROFILE =====
 function initProfile() {
-   var profileName = document.getElementById("profileName");
-   if (profileName) {
-     profileName.textContent = userProgress.name;
-   }
-   var joinDate = document.getElementById("joinDate");
-   if (joinDate) {
-     var today = new Date();
-     joinDate.textContent = today.toLocaleDateString("en-US", {
-       month: "long",
-       day: "numeric",
-       year: "numeric",
-     });
-   }
-   var currentDate = document.getElementById("current-date");
-   if (currentDate) {
-     currentDate.textContent = new Date().toLocaleDateString("en-US", {
-       weekday: "long",
-       month: "long",
-       day: "numeric",
-     });
-   }
-   var avatarIcon = document.querySelector(".avatar-icon");
-   if (avatarIcon) {
-     avatarIcon.textContent = userProgress.avatar || "🚀";
-   }
-   updateProfile();
- }
+  var profileName = document.getElementById("profileName");
+  if (profileName) {
+    profileName.textContent = userProgress.name;
+  }
+  var joinDate = document.getElementById("joinDate");
+  if (joinDate) {
+    var today = new Date();
+    joinDate.textContent = today.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+  var currentDate = document.getElementById("current-date");
+  if (currentDate) {
+    currentDate.textContent = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+  }
+  var avatarIcon = document.querySelector(".avatar-icon");
+  if (avatarIcon) {
+    avatarIcon.textContent = userProgress.avatar || "🚀";
+  }
+  updateProfile();
+}
 
 function updateProfile() {
   var levelNames = [
@@ -2128,32 +2137,32 @@ function initDashboard() {
 }
 
 function updateDashboard() {
-   document.getElementById("completedProblems").textContent =
-     userProgress.completedProblems.length;
-   document.getElementById("currentStreak").textContent = userProgress.streak;
-   document.getElementById("totalXP").textContent = userProgress.xp;
+  document.getElementById("completedProblems").textContent =
+    userProgress.completedProblems.length;
+  document.getElementById("currentStreak").textContent = userProgress.streak;
+  document.getElementById("totalXP").textContent = userProgress.xp;
 
-   updateCurrentDate();
-   updateActivityList();
-   updateBadges();
-   updateRecentProblems(); // Recently Viewed Problems
-   updateLeaderboard();
- }
+  updateCurrentDate();
+  updateActivityList();
+  updateBadges();
+  updateRecentProblems(); // Recently Viewed Problems
+  updateLeaderboard();
+}
 
 function updateCurrentDate() {
-   const dateEl = document.getElementById("dashboard-current-date");
-   if (dateEl) {
-     const now = new Date();
-     dateEl.textContent = now.toLocaleDateString("en-US", {
-       weekday: "long",
-       month: "long",
-       day: "numeric",
-       year: "numeric",
-     });
-   }
- }
+  const dateEl = document.getElementById("dashboard-current-date");
+  if (dateEl) {
+    const now = new Date();
+    dateEl.textContent = now.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+}
 
- function updateActivityList() {
+function updateActivityList() {
   const activityList = document.getElementById("activityList");
 
   if (userProgress.completedProblems.length === 0) {
@@ -2194,16 +2203,13 @@ function updateRecentProblems() {
     !userProgress.recentProblems ||
     userProgress.recentProblems.length === 0
   ) {
-    container.innerHTML =
-      "<p>No recently viewed problems</p>";
+    container.innerHTML = "<p>No recently viewed problems</p>";
     return;
   }
 
   container.innerHTML = userProgress.recentProblems
     .map((id) => {
-      const problem = practiceProblems.find(
-        (p) => p.id === id
-      );
+      const problem = practiceProblems.find((p) => p.id === id);
 
       if (!problem) return "";
 
@@ -2215,20 +2221,17 @@ function updateRecentProblems() {
     })
     .join("");
 
-  container.querySelectorAll(".recent-problem")
-    .forEach((item) => {
-      item.addEventListener("click", () => {
-        const problemId = parseInt(item.dataset.id);
+  container.querySelectorAll(".recent-problem").forEach((item) => {
+    item.addEventListener("click", () => {
+      const problemId = parseInt(item.dataset.id);
 
-        const problem = practiceProblems.find(
-          (p) => p.id === problemId
-        );
+      const problem = practiceProblems.find((p) => p.id === problemId);
 
-        if (problem) {
-          openQuizEditor(problem);
-        }
-      });
+      if (problem) {
+        openQuizEditor(problem);
+      }
     });
+  });
 }
 
 function updateBadges() {
@@ -2605,7 +2608,6 @@ function applySavedTheme() {
   }
 }
 
-
 function initDarkMode() {
   const toggle = document.getElementById("darkModeToggle");
   if (!toggle) return;
@@ -2673,8 +2675,8 @@ function loadUserData() {
       if (!userProgress.quizScores) {
         userProgress.quizScores = {};
       }
-        if (!userProgress.recentProblems) {
-          userProgress.recentProblems = [];
+      if (!userProgress.recentProblems) {
+        userProgress.recentProblems = [];
       }
 
       // Update streak if user was active yesterday
@@ -2759,8 +2761,10 @@ function openNotesModal(problemId) {
 
   currentNotesProblemId = problemId;
   const problem = practiceProblems.find((p) => p.id === problemId);
-  document.getElementById("notesModalTitle").textContent = `Notes: ${problem ? problem.title : ""}`;
-  document.getElementById("notesEditor").value = userProgress.problemNotes[problemId] || "";
+  document.getElementById("notesModalTitle").textContent =
+    `Notes: ${problem ? problem.title : ""}`;
+  document.getElementById("notesEditor").value =
+    userProgress.problemNotes[problemId] || "";
   modal.classList.add("active");
 }
 
@@ -2985,18 +2989,21 @@ function openQuizEditor(problem) {
       : problem.difficulty === "medium"
         ? "difficulty-medium"
         : "difficulty-hard");
-        
+
   const descEl = document.getElementById("quizDescription");
   if (problem.description) {
     let descHTML = problem.description;
     if (problem.constraints) {
-      descHTML += "<br><br><strong>Constraints:</strong><ul>" +
-        problem.constraints.map(c => `<li>${c}</li>`).join("") +
-        "</ul>";
+      descHTML +=
+        "<br><br><strong>Constraints:</strong><br>" +
+        problem.constraints.map((c) => `• ${c}`).join("<br>");
     }
     descEl.innerHTML = descHTML;
   } else {
-    descEl.textContent = 'Solve the "' + problem.title + '" problem. ' +
+    descEl.textContent =
+      'Solve the "' +
+      problem.title +
+      '" problem. ' +
       problem.tags.map((t) => "[" + t + "]").join(" ");
   }
   const examples = generateExamples(problem);
@@ -3108,17 +3115,15 @@ function addRecentProblem(problemId) {
   }
 
   // Remove existing occurrence
-  userProgress.recentProblems =
-    userProgress.recentProblems.filter(
-      (id) => id !== problemId
-    );
+  userProgress.recentProblems = userProgress.recentProblems.filter(
+    (id) => id !== problemId,
+  );
 
   // Add to beginning
   userProgress.recentProblems.unshift(problemId);
 
   // Keep only last 5
-  userProgress.recentProblems =
-    userProgress.recentProblems.slice(0, 5);
+  userProgress.recentProblems = userProgress.recentProblems.slice(0, 5);
 
   saveUserData();
 }
@@ -3319,74 +3324,102 @@ function validateEmail(email) {
 
 function initNewsletterValidation() {
   const forms = [
-      { formId: 'newsletterForm', inputId: 'newsletterEmail', errorId: 'newsletterError' }
+    {
+      formId: "newsletterForm",
+      inputId: "newsletterEmail",
+      errorId: "newsletterError",
+    },
   ];
 
   forms.forEach(({ formId, inputId, errorId }) => {
-      const form = document.getElementById(formId);
-      if (!form) return;
+    const form = document.getElementById(formId);
+    if (!form) return;
 
-      const input = document.getElementById(inputId);
-      const errorSpan = document.getElementById(errorId);
+    const input = document.getElementById(inputId);
+    const errorSpan = document.getElementById(errorId);
 
-      function showError(message) {
-          errorSpan.textContent = message;
-          input.classList.add('input-error');
-          input.classList.remove('input-success');
-          input.setAttribute('aria-invalid', 'true');
+    function showError(message) {
+      errorSpan.textContent = message;
+      input.classList.add("input-error");
+      input.classList.remove("input-success");
+      input.setAttribute("aria-invalid", "true");
+    }
+
+    function showSuccess() {
+      errorSpan.textContent = "";
+      input.classList.remove("input-error");
+      input.classList.add("input-success");
+      input.removeAttribute("aria-invalid");
+    }
+
+    function clearState() {
+      errorSpan.textContent = "";
+      input.classList.remove("input-error", "input-success");
+      input.removeAttribute("aria-invalid");
+    }
+
+    // Validate on blur (when user leaves the field)
+    input.addEventListener("blur", () => {
+      const value = input.value.trim();
+      if (!value) {
+        showError("Email address is required.");
+      } else if (!validateEmail(value)) {
+        showError(
+          "Please enter a valid email address (e.g. user@example.com).",
+        );
+      } else {
+        showSuccess();
+      }
+    });
+
+    // Clear error while user is typing
+    input.addEventListener("input", () => {
+      clearState();
+    });
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const value = input.value.trim();
+
+      if (!value) {
+        showError("Email address is required.");
+        input.focus();
+        return;
       }
 
-      function showSuccess() {
-          errorSpan.textContent = '';
-          input.classList.remove('input-error');
-          input.classList.add('input-success');
-          input.removeAttribute('aria-invalid');
+      if (!validateEmail(value)) {
+        showError(
+          "Please enter a valid email address (e.g. user@example.com).",
+        );
+        input.focus();
+        return;
       }
 
-      function clearState() {
-          errorSpan.textContent = '';
-          input.classList.remove('input-error', 'input-success');
-          input.removeAttribute('aria-invalid');
-      }
-
-      // Validate on blur (when user leaves the field)
-      input.addEventListener('blur', () => {
-          const value = input.value.trim();
-          if (!value) {
-              showError('Email address is required.');
-          } else if (!validateEmail(value)) {
-              showError('Please enter a valid email address (e.g. user@example.com).');
-          } else {
-              showSuccess();
-          }
-      });
-
-      // Clear error while user is typing
-      input.addEventListener('input', () => {
-              clearState();
-      });
-
-      form.addEventListener('submit', (e) => {
-          e.preventDefault();
-          const value = input.value.trim();
-
-          if (!value) {
-              showError('Email address is required.');
-              input.focus();
-              return;
-          }
-
-          if (!validateEmail(value)) {
-              showError('Please enter a valid email address (e.g. user@example.com).');
-              input.focus();
-              return;
-          }
-
-          // Valid — show success notification and reset
-          showSuccess();
-          showNotification('🎉 Successfully subscribed to the newsletter!', 'success');
-          input.value = '';
-          setTimeout(() => clearState(), 1500);
-      });
+      // Valid — show success notification and reset
+      showSuccess();
+      showNotification(
+        "🎉 Successfully subscribed to the newsletter!",
+        "success",
+      );
+      input.value = "";
+      setTimeout(() => clearState(), 1500);
+    });
   });
 }
+// Back To Top Button
+const backToTopBtn = document.getElementById("backToTopBtn");
+
+window.addEventListener("scroll", () => {
+  if (window.scrollY > 300) {
+    backToTopBtn.classList.add("show");
+  } else {
+    backToTopBtn.classList.remove("show");
+  }
+});
+
+backToTopBtn.addEventListener("click", () => {
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+});
