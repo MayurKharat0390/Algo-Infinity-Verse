@@ -2241,7 +2241,7 @@ function updateProfile() {
   }
 
   // Update profile name in dashboard
-  var dashboardProfileName = document.getElementById("dashboardProfileName");
+  var dashboardProfileName = document.getElementById("profileName");
   if (dashboardProfileName) {
     dashboardProfileName.textContent = userProgress.name;
   }
@@ -2253,10 +2253,9 @@ function updateProfile() {
   }
 
   // Update avatar
-  var avatarIcon = document.querySelector(".avatar-icon");
-  if (avatarIcon) {
-    avatarIcon.textContent = userProgress.avatar || "🚀";
-  }
+  document.querySelectorAll(".avatar-icon").forEach(el => {
+  el.textContent = userProgress.avatar || "🚀";
+});
 
   updateLevelProgress();
 }
