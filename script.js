@@ -3440,6 +3440,47 @@ function toggleNotesButton(btn, problemId) {
   const hasNotes = btn.classList.toggle("active");
 }
 
+// ===== EDITOR DRAFT LIFECYCLE =====
+
+/**
+ * Persist the current editor content for a problem so the user can resume later.
+ * @param {number|string} problemId
+ * @param {string} code
+ */
+function saveEditorDraft(problemId, code) {
+  try {
+    localStorage.setItem(`editorDraft_${problemId}`, code);
+  } catch (e) {
+    console.warn('Could not save editor draft:', e);
+  }
+}
+
+/**
+ * Read back a previously saved draft, or return null if none exists.
+ * @param {number|string} problemId
+ * @returns {string|null}
+ */
+function getEditorDraft(problemId) {
+  try {
+    return localStorage.getItem(`editorDraft_${problemId}`);
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Remove a saved draft after a successful submission / explicit discard.
+ * Safe to call even when no draft exists.
+ * @param {number|string} problemId
+ */
+function clearEditorDraft(problemId) {
+  try {
+    localStorage.removeItem(`editorDraft_${problemId}`);
+  } catch (e) {
+    console.warn('Could not clear editor draft:', e);
+  }
+}
+
 function closeQuizEditor() {
   document.getElementById("quizEditorModal").classList.remove("active");
   currentProblem = null;
@@ -3511,7 +3552,12 @@ function submitQuizCode() {
   initTopicsSection();
   renderActivityHeatmap();
 
+  // Tear down the editor first, then clear the draft so it is only removed
+  // after the save/teardown flow has fully completed.
+  const submittedProblemId = currentProblem.id;
   closeQuizEditor();
+  clearEditorDraft(submittedProblemId);
+
   showNotification(
     `🎉 Problem solved! +${getXPForDifficulty(difficulty)} XP`,
     "success",
@@ -3666,14 +3712,35 @@ function openQuizEditor(problem) {
 
   const editor = document.getElementById("codeEditor");
   const lang = document.getElementById("languageSelect").value;
-  editor.value = getDefaultCode(lang, problem);
+  // Restore saved draft if one exists; only fall back to the default template
+  // when there is no in-progress draft for this problem.
+  const savedDraft = getEditorDraft(problem.id);
+  editor.value = savedDraft !== null ? savedDraft : getDefaultCode(lang, problem);
+    updateEditorDisplayMode();
 
   clearQuizOutput();
+    
+    // Ensure output panel is expanded (not collapsed) when opening editor
+    const outputPanel = document.getElementById('outputPanel');
+    const outputIcon = document.getElementById('outputToggleIcon');
+    if (outputPanel) {
+        outputPanel.classList.remove('collapsed');
+    }
+    if (outputIcon) {
+        outputIcon.classList.remove('fa-chevron-up');
+        outputIcon.classList.add('fa-chevron-down');
+    }
 
   modal.classList.add("active");
 
+    // Reset scrolls and update editor layout
+    editor.scrollTop = 0;
+    editor.scrollLeft = 0;
+    editor.dispatchEvent(new Event('input'));
   updateLineNumbers();
+    syncScroll();
 }
+
 function getDefaultCode(lang, problem) {
   const templates = {
     javascript: `/**
@@ -4072,51 +4139,18 @@ function escapeHtml(text) {
 }
 
 function highlightJS(line) {
-  const keywords =
-    /\b(function|const|let|var|return|if|else|for|while|do|break|continue|switch|case|default|try|catch|finally|throw|new|this|class|extends|super|import|export|from|as|async|await|yield|typeof|instanceof|void|delete|in|of|with|debugger|true|false|null|undefined)\b/g;
-  const strings = /(\"[^"]*\"|'[^']*'|\`[^\`]*\`)/g;
-  const comments = /\/\/.*$/gm;
-
-  let result = escapeHtml(line);
-
-  if (comments.test(line)) {
-    result = result.replace(
-      comments,
-      '<span class=\"token comment\">$&</span>',
-    );
-  }
-  result = result.replace(strings, '<span class=\"token string\">$1</span>');
-  result = result.replace(keywords, '<span class=\"token keyword\">$1</span>');
-
-  // NOTE: Avoid negative lookbehind `(?<!)` for compatibility.
-  // Some browsers throw SyntaxError during regex compilation.
-  // This regex matches numeric literals; additional boundary validation is done per match.
-  const numberRegex =
-    /\\b(\\d+(\\.\\d*)?|\\.\\d+)([eE][+-]?\\d+)?\\b/g;
-
-  if (!/<span class=\"token string\">/.test(result)) {
-    result = result.replace(numberRegex, (match, numPart, expPart, offset) => {
-      // Replicate old intent of excluding cases like `.a` or `a.` around the number.
-      const beforeChar = offset > 0 ? result[offset - 1] : "";
-      const afterIndex = offset + match.length;
-      const afterChar = afterIndex < result.length ? result[afterIndex] : "";
-
-      // If the character right before/after is a dot followed by/preceded by a letter,
-      // skip number highlighting to avoid false positives.
-      // (Best-effort; keep it simple and, most importantly, crash-free.)
-      const beforeIsDotLetter =
-        beforeChar === "." && /[a-zA-Z]/.test(afterChar);
-      const afterIsDotLetter =
-        afterChar === "." && /[a-zA-Z]/.test(beforeChar);
-
-      if (beforeIsDotLetter || afterIsDotLetter) return match;
-      return `<span class=\"token number\">${match}</span>`;
+    const regex = /(<[^>]+>)|(\/\/.*$)|("[^"]*"|'[^']*'|`[^`]*`)|(\b(function|const|let|var|return|if|else|for|while|do|break|continue|switch|case|default|try|catch|finally|throw|new|this|class|extends|super|import|export|from|as|async|await|yield|typeof|instanceof|void|delete|in|of|with|debugger|true|false|null|undefined)\b)|((?<!\.[a-zA-Z])\b(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\b(?!\.[a-zA-Z]))/g;
+    let result = escapeHtml(line);
+    const highlighted = result.replace(regex, (m, tag, comment, str, kw, num) => {
+        if (tag) return tag;
+        if (comment) return '<span class="token comment">' + comment + '</span>';
+        if (str) return '<span class="token string">' + str + '</span>';
+        if (kw) return '<span class="token keyword">' + kw + '</span>';
+        if (num) return '<span class="token number">' + num + '</span>';
+        return m;
     });
-  }
 
-
-
-  return result;
+    return highlighted;
 }
 
 
@@ -4135,7 +4169,16 @@ function updateLineNumbers() {
 function syncScroll() {
   const editor = document.getElementById("codeEditor");
   const lineNumbers = document.getElementById("lineNumbers");
-  lineNumbers.scrollTop = editor.scrollTop;
+    const highlight = document.getElementById('syntaxHighlight');
+    if (editor) {
+        if (lineNumbers) {
+          lineNumbers.scrollTop = editor.scrollTop;
+        }
+        if (highlight) {
+            highlight.scrollTop = editor.scrollTop;
+            highlight.scrollLeft = editor.scrollLeft;
+        }
+    }
 }
 
 // Insert code snippet
@@ -4205,9 +4248,42 @@ function toggleLineComment() {
 function toggleShortcuts() {
   const panel = document.getElementById("shortcutsPanel");
   if (panel) {
-    panel.classList.toggle("active");
+    panel.classList.toggle('active');
   }
 }
+
+// Toggle output panel (collapses and expands)
+function toggleOutputPanel() {
+    const panel = document.getElementById('outputPanel');
+    const icon = document.getElementById('outputToggleIcon');
+    if (!panel) return;
+    
+    panel.classList.toggle('collapsed');
+    
+    if (icon) {
+        if (panel.classList.contains('collapsed')) {
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-up');
+        } else {
+            icon.classList.remove('fa-chevron-up');
+            icon.classList.add('fa-chevron-down');
+        }
+    }
+}
+
+function updateEditorDisplayMode() {
+    const editor = document.getElementById('codeEditor');
+    const highlight = document.getElementById('syntaxHighlight');
+
+    if (!editor) return;
+
+    editor.classList.remove('plain-text-mode');
+    editor.style.setProperty('color', 'transparent', 'important');
+    editor.style.setProperty('-webkit-text-fill-color', 'transparent', 'important');
+    if (highlight) highlight.hidden = false;
+}
+
+// Duplicate definitions removed — single implementations kept above (lines ~3951-3979).
 
 // Editor event listeners
 // Close shortcuts when clicking outside
@@ -4244,6 +4320,70 @@ document.addEventListener("click", (e) => {
     }
   }
 });
+
+function initializeQuizEditor() {
+    const editor = document.getElementById('codeEditor');
+    const languageSelect = document.getElementById('languageSelect');
+
+    if (!editor || editor.dataset.initialized === 'true') {
+        return;
+    }
+
+    editor.dataset.initialized = 'true';
+
+    const syncEditorState = () => {
+        updateSyntaxHighlight();
+        updateLineNumbers();
+        syncScroll();
+    };
+
+    editor.addEventListener('input', () => {
+        syncEditorState();
+        // Persist draft while the user types so it survives page reloads.
+        if (currentProblem) {
+            saveEditorDraft(currentProblem.id, editor.value);
+        }
+    });
+    editor.addEventListener('scroll', syncScroll);
+    editor.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const start = editor.selectionStart;
+            const end = editor.selectionEnd;
+            const value = editor.value;
+            editor.value = `${value.slice(0, start)}    ${value.slice(end)}`;
+            editor.selectionStart = editor.selectionEnd = start + 4;
+            syncEditorState();
+        } else if (e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault();
+            runQuizCode();
+        } else if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            submitQuizCode();
+        }
+    });
+
+    if (languageSelect) {
+        languageSelect.addEventListener('change', () => {
+            const editor = document.getElementById('codeEditor');
+            if (editor && currentProblem) {
+                editor.value = getDefaultCode(languageSelect.value, currentProblem);
+                editor.scrollTop = 0;
+                editor.scrollLeft = 0;
+            }
+            syncEditorState();
+            updateEditorDisplayMode();
+        });
+    }
+
+    syncEditorState();
+}
+
+if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', initializeQuizEditor);
+} else {
+    initializeQuizEditor();
+}
 
 // ===== FOOTER QUESTION HANDLERS =====
 // Initialize some animations after page load
