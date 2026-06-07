@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Coding Resume - Algo Infinity Verse</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="resume.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Poppins:wght@300;400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+  </head>
+  <body>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+      <div class="loader">
+        <div class="infinity-loader">∞</div>
+        <h2>Algo Infinity Verse</h2>
+        <div class="loading-bar">
+          <div class="loading-progress"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scroll to Top Button -->
+    <button id="scrollTopBtn" class="scroll-top-btn" aria-label="Scroll to top">
+      <i class="fas fa-arrow-up"></i>
+    </button>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar" style="background: rgba(10, 10, 26, 0.95);">
+      <div class="nav-logo">
+        <span class="logo-text">∞</span>
+        <span class="logo-title">Algo Infinity Verse</span>
+      </div>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html#home">Home</a></li>
+        <li><a href="index.html#topics">DSA Topics</a></li>
+        <li><a href="index.html#quiz">Quizzes</a></li>
+        <li><a href="index.html#practice">Practice</a></li>
+        <li><a href="index.html#roadmap">Roadmap</a></li>
+        <li><a href="index.html#interview">Interview Prep</a></li>
+        <li><a href="cheat-sheets.html">Cheat Sheets</a></li>
+        <li><a href="community.html">Community</a></li>
+        <li><a href="index.html#dashboard">Dashboard</a></li>
+        <li><a href="index.html#profile">Profile</a></li>
+        <li><a href="resume.html" class="active">Resume</a></li>
+      </ul>
+      <div class="nav-buttons">
+        <button id="darkModeToggle" class="dark-mode-btn" aria-label="Toggle dark mode">
+          <i class="fas fa-moon"></i>
+        </button>
+        <button id="menuToggle" class="menu-toggle" aria-label="Toggle menu">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+    </nav>
+
+    <div class="spacer" style="height: 80px;"></div>
+
+    <!-- Hero Background for starfield effect -->
+    <div class="hero-background" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;">
+      <div class="stars"></div>
+      <div class="stars2"></div>
+      <div class="stars3"></div>
+    </div>
+
+    <!-- Main Content Section -->
+    <section class="section resume-section">
+      <div class="container">
+        <!-- Resume Header Actions -->
+        <div class="resume-header-actions animate-in">
+          <h1 class="section-title">
+            <span class="title-icon">📄</span>
+            Coding Resume
+          </h1>
+          <p class="section-subtitle">
+            Visualize your progress, statistics, DSA mastery, and accomplishments in a resume layout.
+          </p>
+          <div class="header-actions">
+            <button id="exportPdfBtn" class="btn btn-primary">
+              <i class="fas fa-file-pdf"></i> Export to PDF
+            </button>
+          </div>
+        </div>
+
+        <!-- Glassmorphic Resume Layout -->
+        <div class="resume-container glass-card animate-in">
+          <!-- Resume Header Section -->
+          <div class="resume-header">
+            <div class="resume-avatar-container">
+              <span id="resumeAvatar" class="resume-avatar">🚀</span>
+            </div>
+            <div class="resume-info">
+              <h2 id="resumeName" class="gradient-text">Learner</h2>
+              <p class="resume-title"><i class="fas fa-code"></i> Algorithm Enthusiast & Software Engineer</p>
+              <div class="resume-meta">
+                <span id="resumeEmail"><i class="fas fa-envelope"></i> Not Provided</span>
+                <span id="resumeJoinDate"><i class="fas fa-calendar-alt"></i> Joined: June 2026</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="resume-body-grid">
+            <!-- Left Side / Sidebar -->
+            <div class="resume-sidebar">
+              <!-- Statistics Section -->
+              <div class="resume-card">
+                <h3><i class="fas fa-chart-bar"></i> Coding Stats</h3>
+                <div class="resume-stats-grid">
+                  <div class="resume-stat-item">
+                    <span class="stat-icon"><i class="fas fa-star"></i></span>
+                    <div class="stat-details">
+                      <span id="resumeXP" class="stat-val">0</span>
+                      <span class="stat-lbl">Total XP</span>
+                    </div>
+                  </div>
+                  <div class="resume-stat-item">
+                    <span class="stat-icon"><i class="fas fa-chevron-up"></i></span>
+                    <div class="stat-details">
+                      <span id="resumeLevel" class="stat-val">1</span>
+                      <span class="stat-lbl">Current Level</span>
+                    </div>
+                  </div>
+                  <div class="resume-stat-item">
+                    <span class="stat-icon"><i class="fas fa-check-circle"></i></span>
+                    <div class="stat-details">
+                      <span id="resumeSolved" class="stat-val">0</span>
+                      <span class="stat-lbl">Solved Problems</span>
+                    </div>
+                  </div>
+                  <div class="resume-stat-item">
+                    <span class="stat-icon"><i class="fas fa-fire"></i></span>
+                    <div class="stat-details">
+                      <span id="resumeStreak" class="stat-val">0</span>
+                      <span class="stat-lbl">Day Streak</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Skills Section -->
+              <div class="resume-card">
+                <h3><i class="fas fa-laptop-code"></i> Tech Stack</h3>
+                <div class="skills-category">
+                  <h4>Programming Languages</h4>
+                  <div class="skills-tags">
+                    <span class="skill-tag"><i class="fab fa-js-square"></i> JavaScript</span>
+                    <span class="skill-tag"><i class="fab fa-python"></i> Python</span>
+                    <span class="skill-tag"><i class="fab fa-java"></i> Java</span>
+                    <span class="skill-tag"><i class="fas fa-terminal"></i> C++</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Side / Main Body -->
+            <div class="resume-main">
+              <!-- DSA Progress Section -->
+              <div class="resume-card">
+                <h3><i class="fas fa-project-diagram"></i> DSA Mastery</h3>
+                <div id="dsaProgressContainer" class="dsa-progress-container">
+                  <!-- Generated dynamically in resume.js -->
+                  <div class="loading-placeholder">Computing mastery...</div>
+                </div>
+              </div>
+
+              <!-- Badges Section -->
+              <div class="resume-card">
+                <h3><i class="fas fa-award"></i> Achievements & Badges</h3>
+                <div id="badgesGrid" class="resume-badges-grid">
+                  <!-- Generated dynamically in resume.js -->
+                  <div class="loading-placeholder">Loading achievements...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-content">
+          <div class="footer-section">
+            <h3>∞ Algo Infinity Verse</h3>
+            <p>
+              Your ultimate destination for mastering Data Structures &
+              Algorithms and acing technical interviews.
+            </p>
+            <div class="social-links">
+              <a href="#" aria-label="GitHub"><i class="fab fa-github"></i></a>
+              <a href="#" aria-label="Twitter"><i class="fab fa-twitter"></i></a>
+              <a href="#" aria-label="LinkedIn"><i class="fab fa-linkedin"></i></a>
+              <a href="#" aria-label="YouTube"><i class="fab fa-youtube"></i></a>
+            </div>
+          </div>
+          <div class="footer-section">
+            <h4>Quick Links</h4>
+            <ul>
+              <li><a href="index.html#topics">DSA Topics</a></li>
+              <li><a href="index.html#practice">Practice Problems</a></li>
+              <li><a href="index.html#roadmap">Learning Roadmap</a></li>
+              <li><a href="index.html#interview">Interview Prep</a></li>
+            </ul>
+          </div>
+          <div class="footer-section">
+            <h4>Resources</h4>
+            <ul>
+              <li><a href="#">Documentation</a></li>
+              <li><a href="#">Blog</a></li>
+              <li><a href="community.html">Community</a></li>
+              <li><a href="cheat-sheets.html">DSA Cheat Sheets</a></li>
+              <li><a href="support-page/index.html">Support</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <p>
+            &copy; 2026 Algo Infinity Verse. Crafted with 💜 for learners
+            worldwide.
+          </p>
+        </div>
+      </div>
+    </footer>
+
+    <script type="module" src="resume.js"></script>
+  </body>
+</html>

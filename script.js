@@ -2415,15 +2415,22 @@ function initRoadmap() {
 
 // ===== PROFILE =====
 function initProfile() {
-  var profileName = document.getElementById("profileName");
+  var profileName = document.getElementById("profileName") || document.getElementById("profileDashboardName");
   if (profileName) {
     profileName.textContent = userProgress.name;
   }
+  
+  // Set join date in userProgress if missing
+  if (!userProgress.joinDate) {
+    userProgress.joinDate = new Date().toISOString();
+    saveUserData();
+  }
+
   var joinDate = document.getElementById("joinDate");
-  var joinDateSection = document.getElementById("joinDateSection");
+  var joinDateSection = document.getElementById("joinDateSection") || document.getElementById("joinDateDashboard");
   if (joinDate || joinDateSection) {
-    var today = new Date();
-    var formattedDate = today.toLocaleDateString("en-US", {
+    var dateVal = new Date(userProgress.joinDate);
+    var formattedDate = isNaN(dateVal.getTime()) ? userProgress.joinDate : dateVal.toLocaleDateString("en-US", {
       month: "long",
       day: "numeric",
       year: "numeric",
@@ -2532,7 +2539,7 @@ function updateProfile() {
   }
 
   // Update profile name in dashboard
-  var dashboardProfileName = document.getElementById("profileName");
+  var dashboardProfileName = document.getElementById("profileName") || document.getElementById("profileDashboardName");
   if (dashboardProfileName) {
     dashboardProfileName.textContent = userProgress.name;
   }
