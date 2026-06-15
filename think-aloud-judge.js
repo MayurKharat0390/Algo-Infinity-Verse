@@ -820,8 +820,109 @@ function initThinkAloudJudge() {
       `;
     }
     socraticFeedback.innerHTML = coachHTML;
-    showNotification("Reasoning Analysis Complete! 🧠", "success");
+
+    // Update Coding Personality metrics
+    updateCodingPersonalityFromJudge(analysis, thoughtsText, codeText);
+
+    showNotification("Reasoning Analysis Complete! Coding Personality metrics updated 🧠", "success");
   });
+}
+
+function updateCodingPersonalityFromJudge(analysis, thoughts, code) {
+  if (typeof userProgress === "undefined") return;
+  if (!userProgress.codingPersonality) {
+    userProgress.codingPersonality = {
+      type: "brute-force first",
+      bruteForceCount: 1,
+      slowAccurateCount: 0,
+      greedyCount: 0,
+      overOptimizerCount: 0
+    };
+  }
+
+  const cp = userProgress.codingPersonality;
+  const thoughtsLower = thoughts.toLowerCase();
+  const codeLower = code.toLowerCase();
+
+  let isBruteForce = false;
+  let isOverOptimizer = false;
+  let isSlowAccurate = false;
+  let isGreedy = false;
+
+  // 1. Brute-force first indicators
+  if (analysis.misconceptions.some(m => m.title.includes("Brute-Force Jump") || m.title.includes("Quadratic Lookup"))) {
+    isBruteForce = true;
+  }
+  if (thoughts.trim().length < 15 && (code.match(/\/\/|#/g) || []).length < 2) {
+    isBruteForce = true;
+  }
+
+  // 2. Over-optimizer indicators
+  if (analysis.patterns.includes("Complexity Awareness") || analysis.patterns.includes("Memoization Cache")) {
+    if (codeLower.includes("map") || codeLower.includes("dict") || codeLower.includes("memo") || codeLower.includes("cache") || codeLower.includes("seen")) {
+      isOverOptimizer = true;
+    }
+  }
+  if (thoughtsLower.includes("optimize") || thoughtsLower.includes("complexity") || thoughtsLower.includes("tradeoff") || thoughtsLower.includes("optimal")) {
+    isOverOptimizer = true;
+  }
+
+  // 3. Slow but accurate indicators
+  if (analysis.score >= 80 && analysis.patterns.includes("Boundary Guarding") && analysis.misconceptions.length === 0) {
+    isSlowAccurate = true;
+  }
+  if (thoughtsLower.includes("boundary") || thoughtsLower.includes("edge case") || thoughtsLower.includes("validate") || thoughtsLower.includes("null check")) {
+    isSlowAccurate = true;
+  }
+
+  // 4. Greedy thinker indicators
+  const greedyKeywords = ["greedy", "heuristic", "local", "immediate", "sort", "greedy thinker", "min", "max"];
+  if (greedyKeywords.some(kw => thoughtsLower.includes(kw) || codeLower.includes(kw))) {
+    isGreedy = true;
+  }
+
+  // Increment counters based on detected behaviors
+  if (isBruteForce) {
+    cp.bruteForceCount = (cp.bruteForceCount || 0) + 1;
+  }
+  if (isOverOptimizer) {
+    cp.overOptimizerCount = (cp.overOptimizerCount || 0) + 1;
+  }
+  if (isSlowAccurate) {
+    cp.slowAccurateCount = (cp.slowAccurateCount || 0) + 1;
+  }
+  if (isGreedy) {
+    cp.greedyCount = (cp.greedyCount || 0) + 1;
+  }
+
+  // Recalculate dominant type
+  const counts = {
+    "brute-force first": cp.bruteForceCount || 0,
+    "over-optimizer": cp.overOptimizerCount || 0,
+    "slow but accurate": cp.slowAccurateCount || 0,
+    "greedy thinker": cp.greedyCount || 0
+  };
+
+  let dominantType = cp.type || "brute-force first";
+  let maxCount = -1;
+  for (const type in counts) {
+    if (counts[type] > maxCount) {
+      maxCount = counts[type];
+      dominantType = type;
+    }
+  }
+
+  cp.type = dominantType;
+
+  // Persist the changes
+  if (typeof saveUserData === "function") {
+    saveUserData();
+  }
+  
+  // Re-render personality card if elements exist
+  if (typeof renderPersonalityCard === "function") {
+    renderPersonalityCard();
+  }
 }
 
 function getSocraticQuestionForMisconception(title) {
@@ -840,3 +941,4 @@ function getSocraticQuestionForMisconception(title) {
   }
   return "If you dry-run this logic step-by-step on paper with a negative bound, does it execute correctly?";
 }
+
