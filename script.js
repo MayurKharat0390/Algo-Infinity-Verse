@@ -1,23 +1,3 @@
-
-document.addEventListener("submit", function (e) {
-  e.preventDefault();
-  e.stopPropagation();
-  return false;
-}, true);
-window.addEventListener("load", () => {
-  document.addEventListener("submit", (e) => {
-    e.preventDefault();
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.ctrlKey) {
-      if (document.activeElement.tagName === "TEXTAREA") {
-        e.stopPropagation();
-      }
-    }
-  });
-});
-
 // ===== QUIZ DATA =====
 const quizQuestions = {
   arrays: [
@@ -1753,29 +1733,10 @@ const chatbotResponses = {
 
 // ===== STATE MANAGEMENT =====
 let userProgress = {
-
-    name: "Learner",
-    avatar: "🚀",
-    completedProblems: [],
-    xp: 0,
-    level: 1,
-    streak: 0,
-    badges: [],
-    lastActive: null,
-    joinDate: null, // Will be set on first load
-    quizScores: {}, // topic -> { bestScore, attempts, totalXP }
-
   name: "Learner",
   avatar: "🚀",
   completedProblems: [],
   completedDailyChallenges: [],
-  codingPersonality: {
-    type: "brute-force first",
-    bruteForceCount: 1,
-    slowAccurateCount: 0,
-    greedyCount: 0,
-    overOptimizerCount: 0
-  },
 
   favoriteProblems: [], //here i have added a new property to store the user's favorite problems
   recentProblems: [], //here i have added a new property to store the user's recent problems
@@ -1791,12 +1752,6 @@ let userProgress = {
   quizScores: {}, // topic -> { bestScore, attempts, totalXP }
   bestQuizTimes: {},
   activityData: {}, // date-string -> count (e.g. "2026-06-05" -> 3)
-  mistakeDna: {
-    offByOneCount: 0,
-    recursionBaseCaseCount: 0,
-    wrongLogicCount: 0,
-    recentLogs: []
-  }
 };
 
 
@@ -1812,40 +1767,6 @@ let currentProblem = null;
  * @see {@link https://github.com/Eshajha19/Algo-Infinity-Verse/issues/258}
  */
 // ===== INITIALIZATION =====
-
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOMContentLoaded fired, initializing app...');
-    loadUserData();
-    initLoadingScreen();
-    initNavbar();
-    initHeroSection();
-    initTopicsSection();
-    initQuizSection();
-    initPracticeSection();
-    initRoadmap();
-    initDashboard();
-    initGamification();
-    initChatbot();
-    initProfile();
-    initScrollEffects();
-    initDarkMode();
-
-    // Update profile display after loading
-    
-    console.log('App initialization complete');
-
-    // Language change handler for code editor
-    const langSelect = document.getElementById('languageSelect');
-    if (langSelect) {
-        langSelect.addEventListener('change', () => {
-            if (currentProblem) {
-                const editor = document.getElementById('codeEditor');
-                editor.value = getDefaultCode(langSelect.value, currentProblem);
-                editor.dispatchEvent(new Event('input'));
-            }
-        });
-    }
-  });
 document.addEventListener("DOMContentLoaded", () => {
 
   // Apply saved theme only after DOM is ready to avoid touching document.body too early
@@ -1897,7 +1818,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
-
 
   const saveNotesBtn = document.getElementById("saveNotesBtn");
 
@@ -2491,50 +2411,23 @@ function updateQuizProgressDisplay(topic) {
   attemptsEl.textContent = quizData.attempts;
 }
 
+function startQuiz(topicKey) {
 
-function showQuizLoading(topicName) {
-    const loader = document.getElementById('quizLoadingScreen');
-    const topic = document.getElementById('quizLoadingTopic');
+  // Normalize topicKey defensively in case caller passes name/variant.
+  const normalizedTopicKey = getQuizTopicKey(String(topicKey));
+  const topicQuiz = quizQuestions[normalizedTopicKey];
 
-    if (topic) {
-        topic.textContent = `Loading ${topicName} Quiz`;
-    }
+  if (!topicQuiz || topicQuiz.length === 0) {
+    console.error("Quiz data not found for:", {
+      rawTopicKey: topicKey,
+      normalizedTopicKey,
+      availableKeys: Object.keys(quizQuestions),
+    });
+    return;
+  }
 
-    if (loader) {
-        loader.classList.remove('hidden');
-    }
-
-    document.getElementById('topicQuizQuestionText').style.display = 'none';
-    document.getElementById('topicQuizOptions').style.display = 'none';
-    document.getElementById('topicQuizCounter').style.display = 'none';
-
-    const progress = document.querySelector('.quiz-progress-bar-container');
-    if (progress) progress.style.display = 'none';
-}
-
-function hideQuizLoading() {
-    const loader = document.getElementById('quizLoadingScreen');
-
-    if (loader) {
-        loader.classList.add('hidden');
-    }
-
-    document.getElementById('topicQuizQuestionText').style.display = '';
-    document.getElementById('topicQuizOptions').style.display = '';
-    document.getElementById('topicQuizCounter').style.display = '';
-
-    const progress = document.querySelector('.quiz-progress-bar-container');
-    if (progress) progress.style.display = '';
-}
-function startQuiz(topic) {
-    const topicKey = getQuizTopicKey(topic);
-    const questions = quizQuestions[topicKey];
-    
-    if (!questions || questions.length === 0) {
-        showNotification('No quiz questions available for this topic yet!', 'error');
-        return;
-    }
-
+  // Ensure we use the normalized key everywhere below.
+  topicKey = normalizedTopicKey;
 
 
   const resultEl = document.getElementById("topicQuizResult");
@@ -3019,78 +2912,48 @@ function renderProblems(filter = "all", searchQuery = "") {
     totalCountEl.textContent = practiceProblems.length;
   }
 
-  const cpType = userProgress.codingPersonality ? userProgress.codingPersonality.type : "brute-force first";
-
   problemsGrid.innerHTML = filteredProblems
     .map(
-      (problem) => {
-        let isRec = false;
-        let recLabel = "";
-        
-        if (cpType === "brute-force first") {
-          if (problem.difficulty === "easy" || problem.tags.includes("Arrays")) {
-            isRec = true;
-            recLabel = "Plan First!";
-          }
-        } else if (cpType === "over-optimizer") {
-          if (problem.difficulty === "hard" || problem.tags.includes("Dynamic Programming") || problem.tags.includes("Hash Table")) {
-            isRec = true;
-            recLabel = "Optimize Metrics";
-          }
-        } else if (cpType === "slow but accurate") {
-          if (problem.difficulty === "medium") {
-            isRec = true;
-            recLabel = "Speed Practice";
-          }
-        } else if (cpType === "greedy thinker") {
-          if (problem.tags.includes("Greedy") || problem.tags.includes("Divide and Conquer") || problem.tags.includes("Recursion")) {
-            isRec = true;
-            recLabel = "Heuristic Check";
-          }
-        }
-        
-        const recBadge = isRec ? `<span class="rec-personality-badge"><i class="fas fa-brain"></i> ${recLabel}</span>` : "";
+      (problem) => `
+        <div class="problem-card animate-in" data-id="${problem.id}">
+            <div class="problem-header">
+              <h3 class="problem-title">${problem.title}</h3>
+               <div class="problem-actions">
+               <button class="favorite-btn ${
+                 //here we check if the problem is in the user's favorites and add the 'active' class to the button if it is
+                 userProgress.favoriteProblems.includes(problem.id)
+                   ? "active"
+                   : ""
+               }"
+data-id="${problem.id}" aria-label="Favorite problem">
+        <i class="fas fa-heart"></i>
+    </button>
+               <button class="notes-btn ${
+      userProgress.problemNotes[problem.id] ? "has-notes" : ""
+    }" data-id="${problem.id}" aria-label="Problem notes">
+  <i class="fas fa-sticky-note"></i>
+</button>
 
-        return `
-          <div class="problem-card animate-in" data-id="${problem.id}">
-              <div class="problem-header">
-                <h3 class="problem-title">${recBadge}${problem.title}</h3>
-                 <div class="problem-actions">
-                 <button class="favorite-btn ${
-                   //here we check if the problem is in the user's favorites and add the 'active' class to the button if it is
-                   userProgress.favoriteProblems.includes(problem.id)
-                     ? "active"
-                     : ""
-                 }"
-  data-id="${problem.id}" aria-label="Favorite problem">
-          <i class="fas fa-heart"></i>
-      </button>
-                 <button class="notes-btn ${
-        userProgress.problemNotes[problem.id] ? "has-notes" : ""
-      }" data-id="${problem.id}" aria-label="Problem notes">
-    <i class="fas fa-sticky-note"></i>
-  </button>
-  
-  
-                   <span class="difficulty-badge ${getDifficultyClass(problem.difficulty)}">${problem.difficulty}</span>
-               </div>
-              </div>
-              <div class="problem-tags">
-                  ${problem.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
-              </div>
-              <div class="problem-meta">
-                  <span class="acceptance-rate">
-                      <i class="fas fa-users"></i> ${problem.acceptance} acceptance
-                  </span>
-                  ${
-                    userProgress.completedProblems.includes(problem.id)
-                      ? '<span class="completed-badge"><i class="fas fa-check"></i> Completed</span>'
-                      : ""
-                  }
-              </div>
-          </div>
-      `;
-    })
+
+                 <span class="difficulty-badge ${getDifficultyClass(problem.difficulty)}">${problem.difficulty}</span>
+             </div>
+            </div>
+            <div class="problem-tags">
+                ${problem.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
+            </div>
+            <div class="problem-meta">
+                <span class="acceptance-rate">
+                    <i class="fas fa-users"></i> ${problem.acceptance} acceptance
+                </span>
+                ${
+                  userProgress.completedProblems.includes(problem.id)
+                    ? '<span class="completed-badge"><i class="fas fa-check"></i> Completed</span>'
+                    : ""
+                }
+            </div>
+        </div>
+    `,
+    )
     .join("");
 
   // Favorite button handlers
@@ -3959,58 +3822,6 @@ window.openRoadmapStepModal = openRoadmapStepModal;
 
 // ===== PROFILE =====
 function initProfile() {
-
-    var profileName = document.getElementById("profileName");
-    if (profileName) {
-        profileName.textContent = userProgress.name;
-    }
-    
-    // Set joined date
-    var joinDate = document.getElementById("joinDate");
-    if (joinDate) {
-        let joinDateObj;
-        if (userProgress.joinDate) {
-            joinDateObj = new Date(userProgress.joinDate);
-        } else {
-            joinDateObj = new Date();
-            userProgress.joinDate = joinDateObj.toISOString();
-            saveUserData();
-        }
-        joinDate.textContent = joinDateObj.toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric"
-        });
-    }
-    
-    // Set current date in dashboard
-    var currentDateElement = document.getElementById("current-date");
-    if (currentDateElement) {
-        var today = new Date();
-        currentDateElement.textContent = "Today: " + today.toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric"
-        });
-    }
-    
-    // Set current date in dashboard card
-    var dashboardCurrentDateElement = document.getElementById("dashboard-current-date");
-    if (dashboardCurrentDateElement) {
-        var today = new Date();
-        dashboardCurrentDateElement.textContent = "Today: " + today.toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric"
-        });
-    }
-    
-    var avatarIcon = document.querySelector('.avatar-icon');
-    if (avatarIcon) {
-        avatarIcon.textContent = userProgress.avatar || '🚀';
-    }
-    updateProfile();
-
   var profileName = document.getElementById("profileName") || document.getElementById("profileDashboardName");
   if (profileName) {
     profileName.textContent = userProgress.name;
@@ -4047,7 +3858,6 @@ function initProfile() {
     avatarIcon.textContent = userProgress.avatar || "🚀";
   }
   updateProfile();
-
 }
 
 function updateProfile() {
@@ -4221,40 +4031,6 @@ function updateDashboard() {
   updateBadges();
   updateRecentProblems(); // Recently Viewed Problems
   updateLeaderboard();
-
-  // Dynamic Coding Personality Card Injection
-  const grid = document.querySelector(".dashboard-grid");
-  if (grid && !document.getElementById("personalityCard")) {
-    const pCard = document.createElement("div");
-    pCard.className = "dashboard-card personality-card";
-    pCard.id = "personalityCard";
-    const profileCard = grid.querySelector(".profile-card");
-    if (profileCard) {
-      profileCard.after(pCard);
-    } else {
-      grid.prepend(pCard);
-    }
-  }
-  renderPersonalityCard();
-
-  // Dynamic Mistake DNA Card Injection
-  if (grid && !document.getElementById("mistakeDnaCard")) {
-    const mCard = document.createElement("div");
-    mCard.className = "dashboard-card mistake-dna-card";
-    mCard.id = "mistakeDnaCard";
-    const personalityCard = document.getElementById("personalityCard");
-    if (personalityCard) {
-      personalityCard.after(mCard);
-    } else {
-      const profileCard = grid.querySelector(".profile-card");
-      if (profileCard) {
-        profileCard.after(mCard);
-      } else {
-        grid.prepend(mCard);
-      }
-    }
-  }
-  renderMistakeDnaCard();
 }
 
 function updateCurrentDate() {
@@ -4732,118 +4508,6 @@ function initChatbot() {
 
   if (!toggle || !windowEl || !close || !input || !send) return;
 
-  // Inject Doubt Generator toggle switch dynamically into header
-  const header = windowEl.querySelector(".chatbot-header");
-  if (header && !document.getElementById("doubtGenToggle")) {
-    if (!document.getElementById("doubt-gen-styles")) {
-      const styleEl = document.createElement("style");
-      styleEl.id = "doubt-gen-styles";
-      styleEl.textContent = `
-        .doubt-gen-toggle-container {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          margin-left: auto;
-          margin-right: 12px;
-          font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.7);
-          user-select: none;
-          background: rgba(255, 255, 255, 0.05);
-          padding: 4px 8px;
-          border-radius: 20px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .doubt-gen-toggle-container span {
-          font-weight: 600;
-          letter-spacing: 0.5px;
-        }
-        .doubt-gen-switch {
-          position: relative;
-          display: inline-block;
-          width: 32px;
-          height: 18px;
-        }
-        .doubt-gen-switch input {
-          opacity: 0;
-          width: 0;
-          height: 0;
-        }
-        .doubt-gen-slider {
-          position: absolute;
-          cursor: pointer;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background-color: rgba(255, 255, 255, 0.15);
-          transition: .3s ease;
-          border-radius: 34px;
-        }
-        .doubt-gen-slider:before {
-          position: absolute;
-          content: "";
-          height: 12px;
-          width: 12px;
-          left: 3px;
-          bottom: 3px;
-          background-color: #fff;
-          transition: .3s ease;
-          border-radius: 50%;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-        }
-        .doubt-gen-switch input:checked + .doubt-gen-slider {
-          background-color: var(--primary, #8b5cf6);
-          box-shadow: 0 0 8px rgba(139, 92, 246, 0.5);
-        }
-        .doubt-gen-switch input:checked + .doubt-gen-slider:before {
-          transform: translateX(14px);
-        }
-      `;
-      document.head.appendChild(styleEl);
-    }
-
-    const toggleContainer = document.createElement("div");
-    toggleContainer.className = "doubt-gen-toggle-container";
-    toggleContainer.innerHTML = `
-      <span>Doubt Gen</span>
-      <label class="doubt-gen-switch">
-        <input type="checkbox" id="doubtGenToggle" aria-label="Toggle self-debugging doubt generator mode">
-        <span class="doubt-gen-slider"></span>
-      </label>
-    `;
-    header.insertBefore(toggleContainer, close);
-
-    const toggleInput = document.getElementById("doubtGenToggle");
-    const headerTitle = header.querySelector("h4");
-    if (toggleInput && headerTitle) {
-      toggleInput.addEventListener("change", () => {
-        if (toggleInput.checked) {
-          headerTitle.textContent = "Doubt Generator";
-          showNotification("Self-Debugging Mode Activated! Ask questions to get guided debugging hints.", "success");
-          addChatMessage(
-            `<div style="font-size: 0.85rem; color: #a7f3d0; background: rgba(16, 185, 129, 0.1); border: 1px dashed #10b981; padding: 8px 12px; border-radius: 8px; margin-bottom: 5px;">
-              🔍 <strong>Doubt Generator Enabled</strong><br>
-              Instead of giving you code solutions, I will ask reflective Socratic questions to help you spot and fix bugs yourself!
-             </div>`,
-            "bot",
-            { html: true }
-          );
-        } else {
-          headerTitle.textContent = "Algo Assistant";
-          showNotification("Standard Algo Assistant Mode Activated.", "info");
-          addChatMessage(
-            `<div style="font-size: 0.85rem; color: #c084fc; background: rgba(139, 92, 246, 0.1); border: 1px dashed #a855f7; padding: 8px 12px; border-radius: 8px; margin-bottom: 5px;">
-              💡 <strong>Standard Assistant Enabled</strong><br>
-              I will now provide direct code templates, algorithm explanations, and time/space complexity analysis!
-             </div>`,
-            "bot",
-            { html: true }
-          );
-        }
-      });
-    }
-  }
-
   toggle.addEventListener("click", () => {
     windowEl.classList.toggle("hidden");
     const badge = toggle.querySelector(".chatbot-badge");
@@ -4927,74 +4591,6 @@ function addChatMessage(message, sender, { html = false } = {}) {
 function getBotResponse(question) {
   const q = question.toLowerCase();
 
-  const doubtGenToggle = document.getElementById("doubtGenToggle");
-  const isDoubtGenActive = doubtGenToggle && doubtGenToggle.checked;
-
-  if (isDoubtGenActive) {
-    let category = "General";
-    let doubtQuestion = "";
-    let debuggingTip = "";
-
-    // Code snippet detection
-    const isCode = q.includes("{") || q.includes("}") || q.includes("function") || q.includes("def ") || q.includes("for(") || q.includes("while(") || q.includes("let ") || q.includes("const ") || q.includes("var ");
-
-    if (isCode) {
-      category = "Code Analysis";
-      doubtQuestion = "Look closely at your loop/recursion variables. Are they guaranteed to change in every iteration to meet the termination condition, or is there a path that leads to an infinite loop?";
-      debuggingTip = "Trace the value of your loop counters or recursive inputs for the first 3 iterations. Do they move closer to the base/termination case?";
-    } else if (q.includes("sort") || q.includes("bubble") || q.includes("selection") || q.includes("insertion") || q.includes("merge") || q.includes("quick") || q.includes("heap") || q.includes("swap")) {
-      category = "Sorting Algorithms";
-      doubtQuestion = "What happens to equal elements during comparisons? Is your sorting condition preserving their relative order (stable), or could it swap them unnecessarily?";
-      debuggingTip = "Dry-run your sorting condition with a small, duplicate array (e.g., `[2, 2, 1]`) and check if it swaps duplicate elements.";
-    } else if (q.includes("recursion") || q.includes("recursive") || q.includes("fibonacci") || q.includes("factorial") || q.includes("backtrack") || q.includes("stack overflow")) {
-      category = "Recursion & Call Stack";
-      doubtQuestion = "Is your recursion guaranteed to reach the base case? What happens with negative, extremely large, or empty inputs?";
-      debuggingTip = "Add console logs at the very top of your function to print the input values. This lets you trace the sequence of recursive calls.";
-    } else if (q.includes("dp") || q.includes("dynamic programming") || q.includes("memoization") || q.includes("tabulation") || q.includes("knapsack") || q.includes("lcs") || q.includes("coin change")) {
-      category = "Dynamic Programming";
-      doubtQuestion = "How are you defining your subproblem states? Are the base cases of your DP array/table correctly initialized before you start filling it?";
-      debuggingTip = "Draw a small DP table on paper and fill in the first 3 cells manually. Does your transition equation yield the correct values?";
-    } else if (q.includes("tree") || q.includes("bst") || q.includes("graph") || q.includes("node") || q.includes("edge") || q.includes("cycle") || q.includes("bfs") || q.includes("dfs") || q.includes("dijkstra")) {
-      category = "Trees & Graphs";
-      doubtQuestion = "Does your traversal check for cycles or visited nodes? What happens if you run this on a graph with disconnected components or a tree with a null root?";
-      debuggingTip = "Verify that you have initialized a 'visited' set/array to track processed nodes, and verify if root/null checks are at the very beginning.";
-    } else if (q.includes("array") || q.includes("list") || q.includes("index") || q.includes("bounds") || q.includes("empty") || q.includes("null") || q.includes("out of bounds") || q.includes("pointer")) {
-      category = "Arrays & Memory Bounds";
-      doubtQuestion = "What happens if the input is empty or has only one element? Are your loop boundaries (e.g., i < length vs i <= length) safe from off-by-one errors?";
-      debuggingTip = "Manually check the index calculation on the last iteration. Does it access an index equal to the array's length?";
-    } else {
-      category = "General Self-Debugging";
-      doubtQuestion = "What are the exact inputs and outputs you expect? Have you dry-run the logic step-by-step with a pencil and paper?";
-      debuggingTip = "Try explaining your algorithm line-by-line to a 'rubber duck' or writing the steps in simple English comments first.";
-    }
-
-    return `
-      <div class="assistant-response doubt-gen-response">
-        <h4 style="color: var(--accent, #a78bfa);"><i class="fas fa-question-circle"></i> Doubt Generator Mode</h4>
-        
-        <div class="response-section" style="margin-top: 8px;">
-          <strong>Category:</strong> <span class="category-badge" style="background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(139, 92, 246, 0.3); padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; color: #c084fc;">${category}</span>
-        </div>
-        
-        <div class="response-section" style="margin-top: 12px; border-left: 3px solid var(--primary, #8b5cf6); padding-left: 10px;">
-          <h5 style="margin: 0 0 4px 0; font-size: 0.9rem; color: var(--accent, #a78bfa);">🔍 Socratic Question:</h5>
-          <p class="socratic-question" style="font-style: italic; color: #f1f5f9; margin: 0; line-height: 1.4;">
-            "${doubtQuestion}"
-          </p>
-        </div>
-
-        <div class="response-section" style="margin-top: 14px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); padding: 8px 12px; border-radius: 6px;">
-          <h5 style="margin: 0 0 4px 0; font-size: 0.9rem; color: #10b981;">🛠️ Debugging Tip:</h5>
-          <p style="margin: 0; font-size: 0.85rem; line-height: 1.4; color: #cbd5e1;">${debuggingTip}</p>
-        </div>
-
-        <div class="response-section" style="margin-top: 14px; font-size: 0.75rem; color: var(--text-muted, #94a3b8); border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 8px;">
-          <i class="fas fa-info-circle"></i> <em>Answer the question above to locate the bug. Turn off "Doubt Gen" in the header to get direct solutions.</em>
-        </div>
-      </div>
-    `;
-  }
-
   let response = chatbotResponses["default"];
 
   for (const key in chatbotResponses) {
@@ -5002,34 +4598,6 @@ function getBotResponse(question) {
       response = chatbotResponses[key];
       break;
     }
-  }
-
-  const cpType = userProgress.codingPersonality ? userProgress.codingPersonality.type : "brute-force first";
-  let personalityHint = "";
-  if (cpType === "brute-force first") {
-    personalityHint = `
-      <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-left: 3px solid #ef4444; padding: 8px 12px; border-radius: 6px; margin-top: 15px; font-size: 0.8rem; line-height: 1.4; color: #f87171;">
-        ⚠️ <strong>Behavior Tip (Brute-Force First)</strong>: Remember to write down edge checks (like empty/null inputs) before typing logic loops!
-      </div>
-    `;
-  } else if (cpType === "over-optimizer") {
-    personalityHint = `
-      <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.2); border-left: 3px solid #a855f7; padding: 8px 12px; border-radius: 6px; margin-top: 15px; font-size: 0.8rem; line-height: 1.4; color: #c084fc;">
-        ⚡ <strong>Behavior Tip (Over-Optimizer)</strong>: Focus on clean code readability and verify if the performance gain warrants complex structures.
-      </div>
-    `;
-  } else if (cpType === "slow but accurate") {
-    personalityHint = `
-      <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-left: 3px solid #3b82f6; padding: 8px 12px; border-radius: 6px; margin-top: 15px; font-size: 0.8rem; line-height: 1.4; color: #60a5fa;">
-        ⏱️ <strong>Behavior Tip (Slow but Accurate)</strong>: You write correct code! Try setting a timer for 15 minutes to practice coding under pressure.
-      </div>
-    `;
-  } else if (cpType === "greedy thinker") {
-    personalityHint = `
-      <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-left: 3px solid #10b981; padding: 8px 12px; border-radius: 6px; margin-top: 15px; font-size: 0.8rem; line-height: 1.4; color: #34d399;">
-        🎯 <strong>Behavior Tip (Greedy Thinker)</strong>: Ensure a greedy choice guarantees a global optimum before finalizing your algorithm.
-      </div>
-    `;
   }
 
   return `
@@ -5051,8 +4619,6 @@ function solveProblem() {
       <h4>📊 Complexity Analysis</h4>
       <p>Time Complexity: O(n)</p>
       <p>Space Complexity: O(1)</p>
-      
-      ${personalityHint}
     </div>
   `;
 }
@@ -5234,113 +4800,124 @@ async function getAuthenticatedSession() {
 }
 
 function loadUserData() {
-    try {
-        const saved = localStorage.getItem("algoInfinityVerse");
-        if (saved) {
-            const data = JSON.parse(saved);
-            userProgress = {
-                ...userProgress,
-                ...data
-            };
-            if (!userProgress.quizScores) {
-                userProgress.quizScores = {};
-            }
-            if (!userProgress.completedRoadmapSteps) {
-                userProgress.completedRoadmapSteps = [];
-            }
-            if (!userProgress.activityData) {
-                userProgress.activityData = {};
-            }
-            // Ensure codingPersonality exists
-            if (!userProgress.codingPersonality) {
-                userProgress.codingPersonality = {
-                    type: "brute-force first",
-                    bruteForceCount: 1,
-                    slowAccurateCount: 0,
-                    greedyCount: 0,
-                    overOptimizerCount: 0
-                };
-            }
-            // Ensure mistakeDna exists
-            if (!userProgress.mistakeDna) {
-                userProgress.mistakeDna = {
-                    offByOneCount: 0,
-                    recursionBaseCaseCount: 0,
-                    wrongLogicCount: 0,
-                    recentLogs: []
-                };
-            }
-            backfillActivityData();
-        } else {
-            userProgress.name = "Learner";
-            userProgress.avatar = "🚀";
-            userProgress.completedProblems = [1,2,10];
-            userProgress.xp = 350;
-            userProgress.level = 2;
-            userProgress.streak = 3;
-            userProgress.badges = [1];
-            userProgress.quizScores = {};
-            userProgress.activityData = {};
-            userProgress.codingPersonality = {
-                type: "brute-force first",
-                bruteForceCount: 1,
-                slowAccurateCount: 0,
-                greedyCount: 0,
-                overOptimizerCount: 0
-            };
-            userProgress.mistakeDna = {
-                offByOneCount: 0,
-                recursionBaseCaseCount: 0,
-                wrongLogicCount: 0,
-                recentLogs: []
-            };
-            saveUserData();
-        }
-    } catch(error) {
-        console.error("Error loading user data:", error);
-        userProgress = {
-            name:"Learner",
-            avatar:"🚀",
-            completedProblems:[],
-            xp:0,
-            level:1,
-            streak:0,
-            badges:[],
-            lastActive:null,
-            quizScores:{},
-            activityData:{},
-            codingPersonality: {
-                type: "brute-force first",
-                bruteForceCount: 1,
-                slowAccurateCount: 0,
-                greedyCount: 0,
-                overOptimizerCount: 0
-            },
-            mistakeDna: {
-                offByOneCount: 0,
-                recursionBaseCaseCount: 0,
-                wrongLogicCount: 0,
-                recentLogs: []
-            }
-        };
+  try {
+    const saved = localStorage.getItem("algoInfinityVerse");
+    if (saved) {
+      const data = JSON.parse(saved);
+      userProgress = { ...userProgress, ...data };
+
+      // Ensure quizScores exists
+      if (!userProgress.quizScores) {
+        userProgress.quizScores = {};
+      }
+
+      // Ensure completedRoadmapSteps exists
+      if (!userProgress.completedRoadmapSteps) {
+        userProgress.completedRoadmapSteps = [];
+      }
+
+      // Sanitize recently viewed problems (can be corrupted in localStorage)
+      const practiceProblemIds = new Set(practiceProblems.map((p) => p.id));
+      const rawRecent = Array.isArray(userProgress.recentProblems)
+        ? userProgress.recentProblems
+        : [];
+
+      const sanitizedRecent = rawRecent
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && practiceProblemIds.has(id));
+
+      const hadCorruption =
+        !Array.isArray(userProgress.recentProblems) ||
+        sanitizedRecent.length !== rawRecent.length;
+
+      userProgress.recentProblems = sanitizedRecent.slice(0, 5);
+
+      if (hadCorruption) {
         saveUserData();
-    }
+      }
+      if (!userProgress.activityData) {
+        userProgress.activityData = {};
+      }
 
-    updateProfile();
+      // Backfill activity heatmap from existing completed problems
+      backfillActivityData();
 
-    getAuthenticatedSession()
-    .then(session=>{
-        if(
-          session &&
-          session.user &&
-          session.user.name
-        ){
-            userProgress.name = session.user.name;
-            updateProfile();
-            saveUserData();
+      // Update streak if user was active yesterday
+      if (userProgress.lastActive) {
+        const lastActive = new Date(userProgress.lastActive);
+        const today = new Date();
+        const diffDays = getDaysDifference(lastActive, today);
+
+
+        if (diffDays === 0) {
+          // Already active today
+        } else {
+          let daysMissed = diffDays > 0 ? diffDays - 1 : 0;
+          while (daysMissed > 0 && userProgress.freezes > 0) {
+            userProgress.freezes -= 1;
+            daysMissed -= 1;
+            userProgress.freezeHistory.push({
+              date: new Date(today.getTime() - (daysMissed + 1) * 24 * 60 * 60 * 1000).toISOString(),
+              reason: "Missed day automatically frozen"
+            });
+          }
+          if (daysMissed > 0) {
+            userProgress.streak = 0;
+          } else {
+            userProgress.streak += 1;
+            if (userProgress.streak > 0 && userProgress.streak % 7 === 0) {
+              userProgress.freezes += 1;
+              showNotification("Milestone reached! You earned a Streak Freeze!", "success");
+            }
+          }
         }
-        initProfile();
-    });
+        saveUserData();
+      }
+    } else {
+      // Initialize with some demo data
+      userProgress.name = "Learner";
+      userProgress.avatar = "🚀";
+      userProgress.completedProblems = [1, 2, 10];
+      userProgress.xp = 350;
+      userProgress.level = 2;
+      userProgress.streak = 3;
+      userProgress.badges = [1];
+      userProgress.quizScores = {};
+      userProgress.activityData = {};
+      backfillActivityData();
+      saveUserData();
+    }
+  } catch (error) {
+    console.error("Error loading user data, resetting to defaults:", error);
+    // Reset to defaults
+    userProgress = {
+      name: "Learner",
+      avatar: "🚀",
+      completedProblems: [],
+      xp: 0,
+      level: 1,
+      streak: 0,
+      favoriteProblems: [],
+      problemNotes: {},
+      badges: [],
+      lastActive: null,
+      quizScores: {},
+      bestQuizTimes: {},
+      activityData: {},
+    };
+    saveUserData();
+  }
+  // Update profile display after loading
+  updateProfile();
+  
+  // Also fetch session to get real name
+  getAuthenticatedSession().then(session => {
+    if (session && session.user && session.user.name) {
+      userProgress.name = session.user.name;
+      updateProfile();
+      saveUserData();
+    }
+  });
 }
 
 // ===== QUIZ EDITOR =====
@@ -6420,93 +5997,6 @@ if (document.readyState === 'loading') {
 // Initialize some animations after page load
 window.addEventListener("load", () => {
 });
-// ✅ FIX: Current Date feature for dashboard + profile
-
-function updateDate() {
-    const today = new Date();
-
-    const formattedDate = today.toLocaleDateString(undefined, {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric"
-    });
-
-    const dashboardDate = document.getElementById("dashboard-current-date");
-    const profileDate = document.getElementById("profile-current-date");
-
-    if (dashboardDate) {
-        dashboardDate.textContent = formattedDate;
-    }
-
-    if (profileDate) {
-        profileDate.textContent = formattedDate;
-    }
-}
-
-// run immediately
-updateDate();
-
-// optional: auto refresh every hour (safe for daily date change)
-setInterval(updateDate, 60 * 60 * 1000);
-let isRunning = false;
-
-document.addEventListener("DOMContentLoaded", () => {
-  const codeEl = document.getElementById("perlEditor");
-  const outputEl = document.getElementById("perlOutput");
-
-  document.getElementById("runBtn").addEventListener("click", runPerl);
-
-  document.getElementById("resetBtn").addEventListener("click", () => {
-    codeEl.value = "";
-    outputEl.textContent = "Run code to see output...";
-  });
-
-  document.getElementById("sampleBtn").addEventListener("click", () => {
-    codeEl.value =
-`print "Hello World\\n";
-
-my $name = "DSA Learner";
-print "Welcome $name\\n";`;
-  });
-});
-
-async function runPerl() {
-  if (isRunning) return;
-  isRunning = true;
-
-  const editor = document.getElementById("perlEditor");
-  const output = document.getElementById("perlOutput");
-
-  const code = editor ? editor.value.trim() : "";
-
-  console.log("DEBUG CODE:", code); // 👈 important debug
-
-  if (!code) {
-    output.textContent = "❌ No code provided";
-    isRunning = false;
-    return;
-  }
-
-  output.textContent = "Running... ⏳";
-
-  try {
-    const res = await fetch("http://localhost:5000/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code })
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    output.textContent = data.output || data.error || "No output";
-  } catch (err) {
-    output.textContent = "Error: " + err.message;
-  }
-
-
-  isRunning = false;
-}
 
 // ===== NEWSLETTER FORM VALIDATION =====
 function validateEmail(email) {
@@ -6933,462 +6423,4 @@ function resetGame() {
     currentIndex: 0, score: 0, correct: 0,
     total: 0, timer: null, timeLeft: 30, xpEarned: 0,
   };
-}
-
-// ===== CODING PERSONALITY QUIZ & RENDERING =====
-const QUIZ_QUESTIONS = [
-  {
-    q: "When starting a new coding problem, what do you do first?",
-    options: [
-      { text: "Start typing the code immediately to see if it works.", type: "brute-force first" },
-      { text: "Analyze constraints, define edge cases, and write pseudocode.", type: "slow but accurate" },
-      { text: "Design a fast greedy heuristic to get a quick correct result.", type: "greedy thinker" },
-      { text: "Search for hash tables or auxiliary space shortcuts to minimize complexity.", type: "over-optimizer" }
-    ]
-  },
-  {
-    q: "How do you evaluate time/space complexity?",
-    options: [
-      { text: "I don't think about it until it gets a Time Limit Exceeded (TLE) error.", type: "brute-force first" },
-      { text: "I trace the iterations and count nested variables step-by-step.", type: "slow but accurate" },
-      { text: "I trust locally optimal choices to run fast enough.", type: "greedy thinker" },
-      { text: "I always structure for O(N) or O(1) space, even if it requires complex code.", type: "over-optimizer" }
-    ]
-  },
-  {
-    q: "Your solution fails on an empty input. What is your reaction?",
-    options: [
-      { text: "I patch it with a quick 'if empty return' condition.", type: "brute-force first" },
-      { text: "I dry-run the loop bounds on paper to understand why it cracked.", type: "slow but accurate" },
-      { text: "I use simple helper fallback returns.", type: "greedy thinker" },
-      { text: "I rewrite the index math to prevent empty pointer states altogether.", type: "over-optimizer" }
-    ]
-  },
-  {
-    q: "What is your main goal when coding?",
-    options: [
-      { text: "Get green checkmarks as fast as possible.", type: "brute-force first" },
-      { text: "Write bug-free, clean, and highly readable code.", type: "slow but accurate" },
-      { text: "Find the simplest, most intuitive logical shortcut.", type: "greedy thinker" },
-      { text: "Optimize space-time metrics to beat 100% of submissions.", type: "over-optimizer" }
-    ]
-  }
-];
-
-let currentQuizIndex = 0;
-let quizSelections = [];
-
-function openPersonalityQuiz() {
-  let modal = document.getElementById("personalityQuizModal");
-  if (!modal) {
-    modal = document.createElement("div");
-    modal.className = "modal";
-    modal.id = "personalityQuizModal";
-    modal.innerHTML = `
-      <div class="modal-content personality-quiz-modal-content">
-        <div class="modal-header">
-          <h3>Coding Personality Profiler</h3>
-          <button class="modal-close" id="personalityQuizClose">&times;</button>
-        </div>
-        <div class="modal-body" id="personalityQuizBody">
-          <!-- Quiz steps render here -->
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-
-    document.getElementById("personalityQuizClose").addEventListener("click", () => {
-      modal.classList.remove("active");
-    });
-  }
-
-  currentQuizIndex = 0;
-  quizSelections = [];
-  modal.classList.add("active");
-  renderPersonalityQuizQuestion();
-}
-
-function renderPersonalityQuizQuestion() {
-  const container = document.getElementById("personalityQuizBody");
-  if (!container) return;
-
-  if (currentQuizIndex >= QUIZ_QUESTIONS.length) {
-    finishPersonalityQuiz();
-    return;
-  }
-
-  const quest = QUIZ_QUESTIONS[currentQuizIndex];
-  container.innerHTML = `
-    <div class="quiz-question-container">
-      <div class="quiz-question-header">
-        <span>Question ${currentQuizIndex + 1} of ${QUIZ_QUESTIONS.length}</span>
-        <span>Coding Style Quiz</span>
-      </div>
-      <p class="quiz-question-text">${quest.q}</p>
-      <div class="quiz-answer-options">
-        ${quest.options.map((opt, i) => `
-          <div class="quiz-answer-option" data-type="${opt.type}">
-            <div class="quiz-answer-letter">${String.fromCharCode(65 + i)}</div>
-            <div class="quiz-answer-text">${opt.text}</div>
-          </div>
-        `).join("")}
-      </div>
-    </div>
-  `;
-
-  // Attach option event listeners
-  container.querySelectorAll(".quiz-answer-option").forEach(item => {
-    item.addEventListener("click", () => {
-      item.classList.add("selected");
-      const type = item.dataset.type;
-      quizSelections.push(type);
-
-      setTimeout(() => {
-        currentQuizIndex++;
-        renderPersonalityQuizQuestion();
-      }, 300);
-    });
-  });
-}
-
-function finishPersonalityQuiz() {
-  const counts = {
-    "brute-force first": 0,
-    "over-optimizer": 0,
-    "slow but accurate": 0,
-    "greedy thinker": 0
-  };
-
-  quizSelections.forEach(type => {
-    counts[type] = (counts[type] || 0) + 1;
-  });
-
-  // Find dominant type
-  let dominantType = "brute-force first";
-  let maxCount = -1;
-  for (const type in counts) {
-    if (counts[type] > maxCount) {
-      maxCount = counts[type];
-      dominantType = type;
-    }
-  }
-
-  // Update counts in userProgress
-  if (!userProgress.codingPersonality) {
-    userProgress.codingPersonality = {};
-  }
-  userProgress.codingPersonality.type = dominantType;
-  userProgress.codingPersonality.bruteForceCount = counts["brute-force first"] + 1;
-  userProgress.codingPersonality.overOptimizerCount = counts["over-optimizer"] + 1;
-  userProgress.codingPersonality.slowAccurateCount = counts["slow but accurate"] + 1;
-  userProgress.codingPersonality.greedyCount = counts["greedy thinker"] + 1;
-
-  saveUserData();
-  renderPersonalityCard();
-  
-  // Also re-render problems so that recommended badges update dynamically!
-  if (typeof renderProblems === "function") {
-    const searchInput = document.getElementById("searchInput");
-    const filterActive = document.querySelector(".filter-btn.active");
-    const activeFilter = filterActive ? filterActive.dataset.filter : "all";
-    renderProblems(activeFilter, searchInput ? searchInput.value.toLowerCase() : "");
-  }
-
-  const modal = document.getElementById("personalityQuizModal");
-  if (modal) modal.classList.remove("active");
-
-  showNotification(`Quiz complete! Your coding personality is: ${dominantType.replace("-", " ").toUpperCase()} 🧠`, "success");
-}
-
-function renderPersonalityCard() {
-  const pCard = document.getElementById("personalityCard");
-  if (!pCard) return;
-
-  const cp = userProgress.codingPersonality || {
-    type: "brute-force first",
-    bruteForceCount: 1,
-    slowAccurateCount: 0,
-    greedyCount: 0,
-    overOptimizerCount: 0
-  };
-
-  const total = (cp.bruteForceCount || 0) + (cp.slowAccurateCount || 0) + (cp.greedyCount || 0) + (cp.overOptimizerCount || 0) || 1;
-  const pctBrute = Math.round(((cp.bruteForceCount || 0) / total) * 100);
-  const pctOpt = Math.round(((cp.overOptimizerCount || 0) / total) * 100);
-  const pctSlow = Math.round(((cp.slowAccurateCount || 0) / total) * 100);
-  const pctGreedy = Math.round(((cp.greedyCount || 0) / total) * 100);
-
-  let icon = "🔎";
-  let desc = "";
-  let adaptation = "";
-
-  if (cp.type === "brute-force first") {
-    icon = "🔴";
-    desc = "You jump straight into writing code! You get solutions quickly, but can overlook edge cases or time/space complexities.";
-    adaptation = "Focus: Easy/Medium problems with boundary checks";
-  } else if (cp.type === "over-optimizer") {
-    icon = "🟣";
-    desc = "You love optimal space/time tricks! You always reach for hashes and pointers, sometimes over-complicating simpler tasks.";
-    adaptation = "Focus: Medium/Hard problems, clean code style";
-  } else if (cp.type === "slow but accurate") {
-    icon = "🔵";
-    desc = "You take your time to design solutions. You have low error rates but could practice coding faster under time limits.";
-    adaptation = "Focus: Medium problems, speed practice";
-  } else if (cp.type === "greedy thinker") {
-    icon = "🟢";
-    desc = "You look for immediate local optimizations. You are great at heuristics, but watch out for cases where DP is required.";
-    adaptation = "Focus: Greedy & Dynamic Programming concepts";
-  }
-
-  pCard.innerHTML = `
-    <h3>🧠 Coding Personality</h3>
-    <div class="personality-profile-content">
-      <div class="personality-header-info">
-        <div class="personality-badge-icon">${icon}</div>
-        <div class="personality-type-group">
-          <h4 style="text-transform: capitalize;">${cp.type.replace("-", " ")}</h4>
-          <span class="adaptation-badge">${adaptation}</span>
-        </div>
-      </div>
-      <p class="personality-description">${desc}</p>
-      
-      <div class="style-progress-bars">
-        <div class="style-bar-group">
-          <span class="style-label">Brute-Force First (${pctBrute}%)</span>
-          <div class="style-bar-track"><div class="style-bar-fill" id="barBrute" style="width: ${pctBrute}%;"></div></div>
-        </div>
-        <div class="style-bar-group">
-          <span class="style-label">Over-Optimizer (${pctOpt}%)</span>
-          <div class="style-bar-track"><div class="style-bar-fill" id="barOpt" style="width: ${pctOpt}%;"></div></div>
-        </div>
-        <div class="style-bar-group">
-          <span class="style-label">Slow but Accurate (${pctSlow}%)</span>
-          <div class="style-bar-track"><div class="style-bar-fill" id="barSlow" style="width: ${pctSlow}%;"></div></div>
-        </div>
-        <div class="style-bar-group">
-          <span class="style-label">Greedy Thinker (${pctGreedy}%)</span>
-          <div class="style-bar-track"><div class="style-bar-fill" id="barGreedy" style="width: ${pctGreedy}%;"></div></div>
-        </div>
-      </div>
-      
-      <div class="personality-actions">
-        <button class="btn btn-secondary btn-mini" id="personalityQuizBtn">
-          <i class="fas fa-redo"></i> Retake Profiler Quiz
-        </button>
-      </div>
-    </div>
-  `;
-
-  // Attach event listener to the quiz button
-  document.getElementById("personalityQuizBtn").addEventListener("click", openPersonalityQuiz);
-}
-
-function logMistake(category, details, problemName) {
-  if (!userProgress.mistakeDna) {
-    userProgress.mistakeDna = {
-      offByOneCount: 0,
-      recursionBaseCaseCount: 0,
-      wrongLogicCount: 0,
-      recentLogs: []
-    };
-  }
-
-  const md = userProgress.mistakeDna;
-  
-  if (category === 'off-by-one') {
-    md.offByOneCount = (md.offByOneCount || 0) + 1;
-  } else if (category === 'recursion') {
-    md.recursionBaseCaseCount = (md.recursionBaseCaseCount || 0) + 1;
-  } else if (category === 'logic') {
-    md.wrongLogicCount = (md.wrongLogicCount || 0) + 1;
-  }
-
-  if (!md.recentLogs) {
-    md.recentLogs = [];
-  }
-  
-  md.recentLogs.push({
-    message: details,
-    problem: problemName || "Workspace Practice",
-    date: new Date().toISOString()
-  });
-
-  if (md.recentLogs.length > 5) {
-    md.recentLogs.shift();
-  }
-
-  saveUserData();
-  renderMistakeDnaCard();
-}
-
-function formatMistakeDate(dateStr) {
-  try {
-    const d = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now - d;
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  } catch (e) {
-    return "Recently";
-  }
-}
-
-function renderMistakeDnaCard() {
-  const mCard = document.getElementById("mistakeDnaCard");
-  if (!mCard) return;
-
-  const md = userProgress.mistakeDna || {
-    offByOneCount: 0,
-    recursionBaseCaseCount: 0,
-    wrongLogicCount: 0,
-    recentLogs: []
-  };
-
-  const offByOne = md.offByOneCount || 0;
-  const recursion = md.recursionBaseCaseCount || 0;
-  const wrongLogic = md.wrongLogicCount || 0;
-  const total = offByOne + recursion + wrongLogic;
-
-  const pctOff = total > 0 ? Math.round((offByOne / total) * 100) : 0;
-  const pctRec = total > 0 ? Math.round((recursion / total) * 100) : 0;
-  const pctLogic = total > 0 ? Math.round((wrongLogic / total) * 100) : 0;
-
-  // Socratic recommendation
-  let recommendation = "No mistakes logged yet! Run code or analyze reasoning in the Think-Aloud workspace to start tracking your coding DNA.";
-  let recTitle = "DNA Engine Diagnostic";
-  let recColor = "#fb923c"; // default orange
-  let recBorderColor = "#f97316";
-  let maxVal = 0;
-
-  if (total > 0) {
-    maxVal = Math.max(offByOne, recursion, wrongLogic);
-    if (maxVal === offByOne) {
-      recTitle = "Off-by-One / Boundary Alert";
-      recommendation = "Socratic Hint: Have you verified your loop bounds and empty input checks? Before submitting, dry run with null, empty arrays, and single-element bounds.";
-      recColor = "#f59e0b";
-      recBorderColor = "#f59e0b";
-    } else if (maxVal === recursion) {
-      recTitle = "Recursion Base Case Alert";
-      recommendation = "Socratic Hint: Ask yourself: 'Does every execution path reach a valid termination state?' Ensure you have base guards for all input structures before recursing.";
-      recColor = "#06b6d4";
-      recBorderColor = "#06b6d4";
-    } else {
-      recTitle = "Wrong Logic Alert";
-      recommendation = "Socratic Hint: Consider drawing out your process: 'Can we solve this using fewer lookups or with a hash-map rather than nested comparisons?' Plan before coding.";
-      recColor = "#ec4899";
-      recBorderColor = "#ec4899";
-    }
-  }
-
-  // Render recent logs
-  const logs = md.recentLogs || [];
-  let logsHtml = "";
-  if (logs.length === 0) {
-    logsHtml = `<p class="empty-state" style="font-size:0.8rem; color:var(--text-secondary); margin:0;">No recent mistake traces found.</p>`;
-  } else {
-    // Show last 5 logs, newest first
-    const displayLogs = [...logs].reverse().slice(0, 5);
-    logsHtml = displayLogs.map(item => {
-      const timeStr = formatMistakeDate(item.date);
-      return `
-        <div class="recent-mistake-log-item">
-          <div>
-            <span class="recent-mistake-desc">${escapeHtml(item.message)}</span>
-            <span class="recent-mistake-source">Problem: ${escapeHtml(item.problem)}</span>
-          </div>
-          <span class="recent-mistake-time-badge">${timeStr}</span>
-        </div>
-      `;
-    }).join("");
-  }
-
-  mCard.innerHTML = `
-    <h3>🧬 Mistake DNA Tracker</h3>
-    <div class="mistake-dna-content">
-      <div class="mistake-dna-header">
-        <div class="mistake-dna-title-group">
-          <span class="mistake-dna-subtitle" style="margin-top: 0;">Behavior-Based Error Clustering</span>
-        </div>
-        <!-- DNA Helix SVG Visualizer -->
-        <svg class="dna-helix-visualizer" viewBox="0 0 100 40">
-          <g fill="none" stroke-width="2">
-            <!-- Strand 1 (Orange/Cyan gradient) -->
-            <path d="M 10,20 Q 25,5 40,20 T 70,20 T 100,20" stroke="url(#dnaGrad1)" opacity="0.6"/>
-            <!-- Strand 2 (Pink/Blue gradient) -->
-            <path d="M 10,20 Q 25,35 40,20 T 70,20 T 100,20" stroke="url(#dnaGrad2)" opacity="0.6"/>
-            <!-- Connections/Bridges -->
-            <line x1="25" y1="12" x2="25" y2="28" stroke="rgba(249, 115, 22, 0.4)" stroke-dasharray="2,2" />
-            <line x1="55" y1="12" x2="55" y2="28" stroke="rgba(249, 115, 22, 0.4)" stroke-dasharray="2,2" />
-            <line x1="85" y1="12" x2="85" y2="28" stroke="rgba(249, 115, 22, 0.4)" stroke-dasharray="2,2" />
-            <!-- Node dots -->
-            <circle class="dna-node-dot" cx="25" cy="12" r="3" fill="#f59e0b" style="animation-delay: 0s;"/>
-            <circle class="dna-node-dot" cx="25" cy="28" r="3" fill="#ec4899" style="animation-delay: 0.5s;"/>
-            <circle class="dna-node-dot" cx="55" cy="12" r="3" fill="#06b6d4" style="animation-delay: 1s;"/>
-            <circle class="dna-node-dot" cx="55" cy="28" r="3" fill="#f97316" style="animation-delay: 1.5s;"/>
-            <circle class="dna-node-dot" cx="85" cy="12" r="3" fill="#ef4444" style="animation-delay: 0.2s;"/>
-            <circle class="dna-node-dot" cx="85" cy="28" r="3" fill="#3b82f6" style="animation-delay: 0.7s;"/>
-          </g>
-          <defs>
-            <linearGradient id="dnaGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#f97316" />
-              <stop offset="100%" stop-color="#06b6d4" />
-            </linearGradient>
-            <linearGradient id="dnaGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#ec4899" />
-              <stop offset="100%" stop-color="#3b82f6" />
-            </linearGradient>
-          </defs>
-        </svg>
-      </div>
-
-      <!-- Mistake Map Progress Bars -->
-      <div class="mistake-map-bars">
-        <div class="mistake-bar-group">
-          <div class="mistake-bar-label">
-            <span class="category-name">Off-by-One / Boundary Errors</span>
-            <span>${offByOne} (${pctOff}%)</span>
-          </div>
-          <div class="mistake-bar-track">
-            <div class="mistake-bar-fill" id="barOffByOne" style="width: ${pctOff}%;"></div>
-          </div>
-        </div>
-        <div class="mistake-bar-group">
-          <div class="mistake-bar-label">
-            <span class="category-name">Recursion Base Case Issues</span>
-            <span>${recursion} (${pctRec}%)</span>
-          </div>
-          <div class="mistake-bar-track">
-            <div class="mistake-bar-fill" id="barRecursion" style="width: ${pctRec}%;"></div>
-          </div>
-        </div>
-        <div class="mistake-bar-group">
-          <div class="mistake-bar-label">
-            <span class="category-name">Wrong Logic Patterns</span>
-            <span>${wrongLogic} (${pctLogic}%)</span>
-          </div>
-          <div class="mistake-bar-track">
-            <div class="mistake-bar-fill" id="barWrongLogic" style="width: ${pctLogic}%;"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Socratic Recommendation Box -->
-      <div class="socratic-recommendation-box" style="border-left-color: ${recBorderColor}; border-color: rgba(${total > 0 ? (maxVal === offByOne ? '245, 158, 11' : maxVal === recursion ? '6, 182, 212' : '236, 72, 153') : '249, 115, 22'}, 0.2)">
-        <span class="socratic-rec-title" style="color: ${recColor};">${recTitle}</span>
-        <p class="socratic-rec-text">${recommendation}</p>
-      </div>
-
-      <!-- Recent Mistake Logs -->
-      <div class="recent-mistakes-section">
-        <span class="recent-mistakes-title">Recent Mistake Traces</span>
-        <div class="recent-mistakes-list">
-          ${logsHtml}
-        </div>
-      </div>
-    </div>
-  `;
 }
