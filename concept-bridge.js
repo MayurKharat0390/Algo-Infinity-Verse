@@ -303,7 +303,7 @@ function initRecursionTree() {
       `;
     } else {
       toggleBtn.innerHTML = `<i class="fas fa-brain"></i> Enable Memoization`;
-      opCounter.textContent = "9";
+      opCounter.textContent = "15";
       explanation.innerHTML = `
         Without memory, <code>fib(3)</code>, <code>fib(2)</code> etc. are calculated repeatedly. Notice the duplicate branches in the tree. This results in exponential operations!
       `;
