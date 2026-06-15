@@ -809,8 +809,11 @@ function initQuizEngine() {
           <strong>🎉 3/3 Correct! Bridge Mastered!</strong><br>
           Excellent work! You have earned +50 XP and successfully bridged these two concepts. Keep it up!
         `;
-        // Trigger simulated XP reward update on local UI dashboard if present
-        rewardXp(50);
+        // Reward only once per quiz button instance
+        if (btn.dataset.rewarded !== "true") {
+          rewardXp(50);
+          btn.dataset.rewarded = "true";
+        }
       } else {
         feedback.classList.add("incorrect-ans");
         feedback.innerHTML = `
