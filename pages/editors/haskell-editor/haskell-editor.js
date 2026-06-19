@@ -3,7 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initNavbar();
   initScrollTop();
   initDarkMode();
-  try { initKotlinEditor(); } catch(e) { console.error("KotlinEditor:", e); }
+  try { initHaskellEditor(); } catch(e) { console.error("HaskellEditor:", e); }
 });
 
 function initLoadingScreen() {
@@ -75,106 +75,114 @@ function initNavbar() {
   });
 }
 
-/* ─── Kotlin Examples ─── */
-const KOTLIN_EXAMPLES = {
+/* ─── Haskell Examples ─── */
+const HASKELL_EXAMPLES = {
   hello: [
     {
-      name: "Main.kt",
-      content: `fun main() {
-    println("Hello, World!")
-    println("Welcome to the Kotlin Editor!")
-}`
+      name: "Main.hs",
+      content: `main :: IO ()
+main = do
+    putStrLn "Hello, World!"
+    putStrLn "Welcome to the Haskell Editor!"`
     }
   ],
 
   variables: [
     {
-      name: "Main.kt",
-      content: `fun main() {
-    val name = "Lakshay" // Read-only variable
-    var age = 21         // Mutable variable
-    val score = 98.5
-    val isReady = true
+      name: "Main.hs",
+      content: `-- In Haskell, variables are immutable bindings.
+-- Let's declare variables and a simple function.
 
-    println("Name: $name")
-    println("Age: $age")
-    println("Score: $score")
-    println("Ready: $isReady")
-}`
+greet :: String -> String
+greet name = "Hello, " ++ name ++ "!"
+
+main :: IO ()
+main = do
+    let name = "Lakshay"
+        age = 21 :: Int
+        score = 98.5 :: Double
+        isReady = True
+    
+    putStrLn (greet name)
+    putStrLn ("Age: " ++ show age)
+    putStrLn ("Score: " ++ show score)
+    putStrLn ("Ready: " ++ show isReady)`
     }
   ],
 
-  collections: [
+  recursion: [
     {
-      name: "Main.kt",
-      content: `fun main() {
-    val numbers = listOf(1, 2, 3, 4, 5)
-    println("List contents:")
-    for ((index, value) in numbers.withIndex()) {
-        println("[$index] => $value")
-    }
+      name: "Main.hs",
+      content: `-- Functional programming excels at recursion and list operations.
 
-    println("\nSquares:")
-    val squares = numbers.map { it * it }
-    println(squares.joinToString(", "))
-}`
-    }
-  ],
+factorial :: Int -> Int
+factorial n = if n <= 1 then 1 else n * factorial (n - 1)
 
-  function: [
-    {
-      name: "Main.kt",
-      content: `fun main() {
-    println(greet("Lakshay"))
-    println("\nfactorial(5)  = \${factorial(5)}")
-    println("factorial(10) = \${factorial(10)}")
-}`
-    },
-    {
-      name: "MathUtils.kt",
-      content: `fun factorial(n: Int): Int {
-    return if (n <= 1) 1 else n * factorial(n - 1)
-}`
-    },
-    {
-      name: "GreetUtils.kt",
-      content: `fun greet(name: String): String {
-    return "Hello, $name!"
-}`
+fibonacci :: Int -> Int
+fibonacci 0 = 0
+fibonacci 1 = 1
+fibonacci n = fibonacci (n - 1) + fibonacci (n - 2)
+
+main :: IO ()
+main = do
+    putStrLn ("factorial 5  = " ++ show (factorial 5))
+    putStrLn ("factorial 10 = " ++ show (factorial 10))
+    
+    putStrLn "\\nFirst 10 Fibonacci numbers:"
+    let fibs = [fibonacci x | x <- [0..9]]
+    putStrLn (show fibs)`
     }
   ],
 
-  class: [
+  modules: [
     {
-      name: "Main.kt",
-      content: `fun main() {
-    val cat = Animal("Cat", "Meow")
-    val dog = Dog("Rex")
+      name: "Main.hs",
+      content: `module Main where
 
-    cat.speak()
-    dog.speak()
-    dog.fetch("ball")
-}`
+import Helper (greet, square)
+
+main :: IO ()
+main = do
+    putStrLn (greet "Lakshay")
+    putStrLn ("square 7 = " ++ show (square 7))`
     },
     {
-      name: "Animals.kt",
-      content: `open class Animal(val name: String, val sound: String) {
-    open fun speak() {
-        println("$name says $sound!")
-    }
-}
+      name: "Helper.hs",
+      content: `module Helper (greet, square) where
 
-class Dog(name: String) : Animal(name, "Woof") {
-    fun fetch(item: String) {
-        println("$name fetches the $item!")
+greet :: String -> String
+greet name = "Hello, " ++ name ++ "!"
+
+square :: Int -> Int
+square x = x * x`
     }
-}`
+  ],
+
+  datatypes: [
+    {
+      name: "Main.hs",
+      content: `-- Algebraic Data Types (ADTs) are core to Haskell.
+
+data Shape = Circle Double | Rectangle Double Double
+    deriving (Show)
+
+area :: Shape -> Double
+area (Circle r) = pi * r * r
+area (Rectangle w h) = w * h
+
+main :: IO ()
+main = do
+    let c = Circle 5.0
+        r = Rectangle 4.0 6.0
+    
+    putStrLn ("Area of circle " ++ show c ++ " is " ++ show (area c))
+    putStrLn ("Area of rectangle " ++ show r ++ " is " ++ show (area r))`
     }
   ]
 };
 
 /* ─── Piston API Executor ─── */
-async function executeKotlin(files) {
+async function executeHaskell(files) {
   if (files.length === 0 || !files.some(f => f.content.trim())) {
     return { output: [], errors: ["No code to execute."] };
   }
@@ -189,7 +197,7 @@ async function executeKotlin(files) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        language: "kotlin",
+        language: "haskell",
         version: "*",
         files: pistonFiles,
         stdin: "",
@@ -239,20 +247,20 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-function highlightKotlin(code) {
+function highlightHaskell(code) {
   const lines = code.split("\n");
   const highlighted = lines.map((line) => {
     let result = escapeHtml(line);
-    const regex = /(<[^>]+>)|(\/\/.*$)|(\/\*[\s\S]*?\*\/)|("""[\s\S]*?"""|"[^"]*"|'[^']*')|(\b(val|var|fun|class|interface|object|import|package|return|if|else|when|for|while|do|break|continue|throw|try|catch|finally|this|super|null|true|false|is|as|in|out|by|companion|init|constructor|data|enum|sealed|open|abstract|private|protected|public|internal|override|lateinit|suspend|to|annotation|inline|value)\b)|((?<!\.[a-zA-Z])\b(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\b(?!\.[a-zA-Z]))|(\b\w+(?=\s*\())/g;
+    const regex = /(<[^>]+>)|(--.*$)|(\{-[\s\S]*?-\})|("[^"]*"|'[^']')|(\b(module|import|where|let|in|data|type|newtype|class|instance|deriving|do|if|then|else|case|of|infix|infixl|infixr|foreign|as|forall|hiding|qualified)\b)|(\b[A-Z]\w*\b)|((?<!\.[a-zA-Z])\b(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\b(?!\.[a-zA-Z]))/g;
     
-    return result.replace(regex, (m, tag, comment, blockComment, str, kw, num, fn) => {
+    return result.replace(regex, (m, tag, comment, blockComment, str, kw, typeToken, num) => {
       if (tag) return tag;
       if (comment) return '<span class="token comment">' + comment + '</span>';
       if (blockComment) return '<span class="token comment">' + blockComment + '</span>';
       if (str) return '<span class="token string">' + str + '</span>';
       if (kw) return '<span class="token keyword">' + kw + '</span>';
+      if (typeToken) return '<span class="token function">' + typeToken + '</span>';
       if (num) return '<span class="token number">' + num + '</span>';
-      if (fn) return '<span class="token function">' + fn + '</span>';
       return m;
     });
   }).join("\n");
@@ -261,26 +269,26 @@ function highlightKotlin(code) {
 }
 
 /* ─── Init Editor ─── */
-function initKotlinEditor() {
-  const editor = document.getElementById("ktEditor");
-  const highlight = document.getElementById("ktHighlight");
+function initHaskellEditor() {
+  const editor = document.getElementById("hsEditor");
+  const highlight = document.getElementById("hsHighlight");
   if (!editor || !highlight) return;
 
-  const outputBody    = document.getElementById("ktOutputBody");
-  const consoleBody   = document.getElementById("ktConsoleBody");
-  const runBtn        = document.getElementById("ktRunBtn");
-  const resetBtn      = document.getElementById("ktResetBtn");
-  const copyBtn       = document.getElementById("ktCopyBtn");
-  const saveBtn       = document.getElementById("ktSaveBtn");
-  const exampleSelect = document.getElementById("ktExampleSelect");
-  const lineNumbers   = document.getElementById("ktLineNumbers");
-  const statusBadge   = document.getElementById("ktStatusBadge");
-  const consoleClear  = document.getElementById("ktConsoleClear");
-  const fileList      = document.getElementById("ktFileList");
-  const newFileBtn    = document.getElementById("ktNewFileBtn");
-  const activeFileNameEl = document.getElementById("ktActiveFileName");
+  const outputBody    = document.getElementById("hsOutputBody");
+  const consoleBody   = document.getElementById("hsConsoleBody");
+  const runBtn        = document.getElementById("hsRunBtn");
+  const resetBtn      = document.getElementById("hsResetBtn");
+  const copyBtn       = document.getElementById("hsCopyBtn");
+  const saveBtn       = document.getElementById("hsSaveBtn");
+  const exampleSelect = document.getElementById("hsExampleSelect");
+  const lineNumbers   = document.getElementById("hsLineNumbers");
+  const statusBadge   = document.getElementById("hsStatusBadge");
+  const consoleClear  = document.getElementById("hsConsoleClear");
+  const fileList      = document.getElementById("hsFileList");
+  const newFileBtn    = document.getElementById("hsNewFileBtn");
+  const activeFileNameEl = document.getElementById("hsActiveFileName");
 
-  const SAVE_KEY = "kotlin-editor-project";
+  const SAVE_KEY = "haskell-editor-project";
   let runSeq = 0;
 
   // Project state
@@ -292,15 +300,15 @@ function initKotlinEditor() {
   if (savedProject) {
     try {
       const parsed = JSON.parse(savedProject);
-      files = parsed.files || KOTLIN_EXAMPLES.hello;
+      files = parsed.files || HASKELL_EXAMPLES.hello;
       activeIndex = parsed.activeIndex !== undefined ? parsed.activeIndex : 0;
       if (activeIndex >= files.length) activeIndex = 0;
     } catch (e) {
-      files = JSON.parse(JSON.stringify(KOTLIN_EXAMPLES.hello));
+      files = JSON.parse(JSON.stringify(HASKELL_EXAMPLES.hello));
       activeIndex = 0;
     }
   } else {
-    files = JSON.parse(JSON.stringify(KOTLIN_EXAMPLES.hello));
+    files = JSON.parse(JSON.stringify(HASKELL_EXAMPLES.hello));
     activeIndex = 0;
   }
 
@@ -351,8 +359,8 @@ function initKotlinEditor() {
 
   exampleSelect.addEventListener("change", () => {
     const val = exampleSelect.value;
-    if (KOTLIN_EXAMPLES[val]) {
-      files = JSON.parse(JSON.stringify(KOTLIN_EXAMPLES[val]));
+    if (HASKELL_EXAMPLES[val]) {
+      files = JSON.parse(JSON.stringify(HASKELL_EXAMPLES[val]));
       activeIndex = 0;
       syncEditorState();
       renderFileList();
@@ -379,7 +387,7 @@ function initKotlinEditor() {
   }
 
   function updateSyntaxHighlight() {
-    highlight.innerHTML = highlightKotlin(editor.value) + "\n";
+    highlight.innerHTML = highlightHaskell(editor.value) + "\n";
   }
 
   function updateLineNumbers() {
@@ -396,7 +404,7 @@ function initKotlinEditor() {
 
       const nameContainer = document.createElement("div");
       nameContainer.className = "file-name-container";
-      nameContainer.innerHTML = `<i class="far fa-file-code"></i> <span>${escapeHtml(file.name)}</span>`;
+      nameContainer.innerHTML = `<i class="fas fa-lambda"></i> <span>${escapeHtml(file.name)}</span>`;
       el.appendChild(nameContainer);
 
       const actionContainer = document.createElement("div");
@@ -450,7 +458,7 @@ function initKotlinEditor() {
     input.type = "text";
     input.className = "file-item-input";
     input.id = "newFileInput";
-    input.placeholder = "Filename.kt";
+    input.placeholder = "Filename.hs";
 
     wrapper.appendChild(input);
     fileList.appendChild(wrapper);
@@ -464,8 +472,8 @@ function initKotlinEditor() {
       }
       
       // Validations
-      if (!name.endsWith(".kt")) {
-        alert("File name must end with '.kt'");
+      if (!name.endsWith(".hs")) {
+        alert("File name must end with '.hs'");
         input.focus();
         return;
       }
@@ -478,7 +486,7 @@ function initKotlinEditor() {
 
       const newFile = {
         name: name,
-        content: `// Kotlin File: ${name}\n\n`
+        content: `-- Haskell module: ${name.slice(0, -3)}\n\n`
       };
 
       files.push(newFile);
@@ -502,7 +510,6 @@ function initKotlinEditor() {
 
     input.addEventListener("blur", () => {
       setTimeout(() => {
-        // Delay to allow clicking other elements or completing input
         if (wrapper.parentNode) {
           finishNewFile();
         }
@@ -533,8 +540,8 @@ function initKotlinEditor() {
         return;
       }
 
-      if (!newName.endsWith(".kt")) {
-        alert("File name must end with '.kt'");
+      if (!newName.endsWith(".hs")) {
+        alert("File name must end with '.hs'");
         input.focus();
         return;
       }
@@ -602,7 +609,7 @@ function initKotlinEditor() {
   function resetProject() {
     if (confirm("Reset current project workspace? All local changes will be lost.")) {
       const val = exampleSelect.value;
-      files = JSON.parse(JSON.stringify(KOTLIN_EXAMPLES[val] || KOTLIN_EXAMPLES.hello));
+      files = JSON.parse(JSON.stringify(HASKELL_EXAMPLES[val] || HASKELL_EXAMPLES.hello));
       activeIndex = 0;
       saveProject();
       syncEditorState();
@@ -634,28 +641,28 @@ function initKotlinEditor() {
   }
 
   function clearConsole() {
-    consoleBody.innerHTML = '<span class="kt-console-placeholder">No errors detected.</span>';
+    consoleBody.innerHTML = '<span class="hs-console-placeholder">No compilation errors.</span>';
   }
 
   async function runCode() {
     const seq = ++runSeq;
     setStatus("running");
-    outputBody.innerHTML = '<span class="kt-output-placeholder">Compiling and running...</span>';
-    consoleBody.innerHTML = '<span class="kt-console-placeholder">No errors detected.</span>';
+    outputBody.innerHTML = '<span class="hs-output-placeholder">Compiling and running...</span>';
+    consoleBody.innerHTML = '<span class="hs-console-placeholder">No compilation errors.</span>';
 
-    const { output, errors } = await executeKotlin(files);
+    const { output, errors } = await executeHaskell(files);
     if (seq !== runSeq) return; // Prevent race conditions
 
     if (output.length > 0) {
       outputBody.innerHTML = "";
       output.forEach((line) => {
         const el = document.createElement("span");
-        el.className = "kt-output-line";
+        el.className = "hs-output-line";
         el.textContent = line;
         outputBody.appendChild(el);
       });
     } else {
-      outputBody.innerHTML = '<span class="kt-output-placeholder">No standard output produced.</span>';
+      outputBody.innerHTML = '<span class="hs-output-placeholder">No standard output produced.</span>';
     }
 
     if (errors.length > 0) {
@@ -668,22 +675,22 @@ function initKotlinEditor() {
   }
 
   function logError(msg) {
-    const placeholder = consoleBody.querySelector(".kt-console-placeholder");
+    const placeholder = consoleBody.querySelector(".hs-console-placeholder");
     if (placeholder) placeholder.remove();
     const el = document.createElement("span");
-    el.className = "kt-console-line";
+    el.className = "hs-console-line";
     el.textContent = msg;
     consoleBody.appendChild(el);
   }
 
   function setStatus(state) {
     const map = {
-      ready:   ["Ready",   "kt-status-ready"],
-      running: ["Running", "kt-status-running"],
-      error:   ["Error",   "kt-status-error"]
+      ready:   ["Ready",   "hs-status-ready"],
+      running: ["Running", "hs-status-running"],
+      error:   ["Error",   "hs-status-error"]
     };
     const [text, cls] = map[state] || map.ready;
     statusBadge.textContent = text;
-    statusBadge.className = `kt-status-badge ${cls}`;
+    statusBadge.className = `hs-status-badge ${cls}`;
   }
 }
