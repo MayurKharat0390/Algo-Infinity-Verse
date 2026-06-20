@@ -445,6 +445,14 @@ public:
     // 1. Time Contraction Stressor (Shocks at 6 minutes / 360 seconds remaining)
     if (stressorTime.checked && !timeContractionTriggered && timeRemaining <= 380 && timeRemaining > 200) {
       timeContractionTriggered = true;
+      // Fire any dialogues that would be skipped by the time jump
+      if (stressorInterruption.checked) {
+        DIALOGUES.forEach(d => {
+          if (d.triggerTime < timeRemaining && d.triggerTime > 120 && !activeInterruption) {
+            triggerDialogue(d);
+          }
+        });
+      }
       timeRemaining = 120; // drop to 2 minutes left
       appendLog('Stressor', 'Timer Contraction Applied: Interviewer has limited time!', 'stressor');
       appendLog('Interviewer', 'Excuse me, I have another meeting starting shortly. Can we conclude your implementation in the next 2 minutes?', 'interviewer');
