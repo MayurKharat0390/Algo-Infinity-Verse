@@ -2,7 +2,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initLoadingScreen();
   initNavbar();
   initScrollTop();
-  initDarkMode();
   try { initComplexityCalculator(); } catch(e) { console.error("Complexity Calculator Error:", e); }
 });
 
@@ -18,23 +17,6 @@ function initScrollTop() {
   if (!btn) return;
   window.addEventListener("scroll", () => btn.classList.toggle("visible", window.scrollY > 400));
   btn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
-}
-
-function initDarkMode() {
-  const toggle = document.getElementById("darkModeToggle");
-  if (!toggle) return;
-  const icon = toggle.querySelector("i");
-  if (localStorage.getItem("darkMode") === "light") {
-    document.body.classList.add("light-mode");
-    icon.classList.replace("fa-moon", "fa-sun");
-  }
-  toggle.addEventListener("click", () => {
-    document.body.classList.toggle("light-mode");
-    const isLight = document.body.classList.contains("light-mode");
-    icon.classList.toggle("fa-moon", !isLight);
-    icon.classList.toggle("fa-sun", isLight);
-    localStorage.setItem("darkMode", isLight ? "light" : "dark");
-  });
 }
 
 function initNavbar() {
@@ -114,6 +96,7 @@ function initComplexityCalculator() {
 
   // Helper for factorial
   function fact(n) {
+    if (n < 0 || !Number.isInteger(n)) return 0;
     if (n > 170) return Infinity; // max safe float limit
     let res = 1;
     for (let i = 2; i <= n; i++) res *= i;

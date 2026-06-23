@@ -3162,6 +3162,7 @@ section[id] {
   justify-content: center;
   align-items: center;
   padding: 2rem;
+  overscroll-behavior: contain;
 }
 
 .modal.active {
@@ -3177,6 +3178,7 @@ section[id] {
   max-width: 700px;
   max-height: 90vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
 }

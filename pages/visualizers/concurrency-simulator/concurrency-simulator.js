@@ -1,337 +1,940 @@
 /**
  * concurrency-simulator.js
- * Implements a Visual Concurrency and Deadlock simulator using 
- * SharedArrayBuffer, Web Workers, and the Atomics API.
+ * Implements a Visual Concurrency & Thread Pool Simulator.
+ * Fully client-side state machine and animation loops.
  */
 
 document.addEventListener("DOMContentLoaded", () => {
-    initSimulator();
+    window.simulator = new ConcurrencySimulator();
 });
 
-// App State
-let sab, view;
-let worker1, worker2;
-let animationReq;
-
-// Memory Layout Constants (Indexes in Int32Array)
-const IDX_BALANCE = 0;
-const IDX_MUTEX_A = 1;
-const IDX_MUTEX_B = 2;
-const IDX_STATE_T1 = 3; // 0=Idle, 1=Working, 2=Waiting
-const IDX_STATE_T2 = 4;
-
-const INITIAL_BALANCE = 1000;
-
-// DOM Elements
-const els = {
-    sabWarning: document.getElementById('sabWarning'),
-    mainWorkspace: document.getElementById('mainWorkspace'),
-    
-    // Controls
-    btnRace: document.getElementById('btnRace'),
-    btnSafe: document.getElementById('btnSafe'),
-    btnDeadlock: document.getElementById('btnDeadlock'),
-    btnReset: document.getElementById('btnReset'),
-    
-    // Visuals
-    uiBalance: document.getElementById('uiBalance'),
-    memoryVault: document.querySelector('.memory-vault'),
-    
-    uiMutex1: document.getElementById('uiMutex1'),
-    iconMutex1: document.getElementById('iconMutex1'),
-    uiMutex2: document.getElementById('uiMutex2'),
-    iconMutex2: document.getElementById('iconMutex2'),
-    
-    statusT1: document.getElementById('statusT1'),
-    statusT2: document.getElementById('statusT2'),
-    uiThread1: document.getElementById('uiThread1'),
-    uiThread2: document.getElementById('uiThread2'),
-    
-    logContainer: document.getElementById('logContainer')
-};
-
-// ==========================================
-// 1. INITIALIZATION & SAB CHECK
-// ==========================================
-function initSimulator() {
-    // Check if SharedArrayBuffer is available (Requires Cross-Origin-Isolation)
-    if (typeof SharedArrayBuffer === 'undefined') {
-        els.sabWarning.classList.remove('hidden');
-        els.mainWorkspace.style.filter = 'blur(5px)';
-        return;
+class ConcurrencySimulator {
+    constructor() {
+        this.cacheDOM();
+        this.init();
     }
 
-    allocateMemory();
-    createWorkers();
-    bindEvents();
-    startUILoop();
-}
-
-function allocateMemory() {
-    // 5 slots of 32-bit integers (20 bytes total)
-    sab = new SharedArrayBuffer(5 * 4);
-    view = new Int32Array(sab);
-    resetMemory();
-}
-
-function resetMemory() {
-    view[IDX_BALANCE] = INITIAL_BALANCE;
-    view[IDX_MUTEX_A] = 0; // 0 = Unlocked
-    view[IDX_MUTEX_B] = 0;
-    view[IDX_STATE_T1] = 0; // 0 = Idle
-    view[IDX_STATE_T2] = 0;
-}
-
-// ==========================================
-// 2. WEB WORKER GENERATOR (Blob)
-// ==========================================
-// By using a Blob, we avoid needing a separate file server path for the worker.
-const workerCode = `
-self.onmessage = function(e) {
-    const { sab, mode, threadId } = e.data;
-    const view = new Int32Array(sab);
-
-    // Indexes
-    const BALANCE = 0;
-    const MUTEX_A = 1;
-    const MUTEX_B = 2;
-    const STATE = threadId === 1 ? 3 : 4;
-
-    function log(msg) {
-        self.postMessage({ type: 'log', threadId, msg });
+    cacheDOM() {
+        this.dom = {
+            speedSlider: document.getElementById("speedSlider"),
+            speedValue: document.getElementById("speedValue"),
+            btnPlayPause: document.getElementById("btnPlayPause"),
+            playIcon: document.getElementById("playIcon"),
+            playText: document.getElementById("playText"),
+            btnStep: document.getElementById("btnStep"),
+            btnResetAll: document.getElementById("btnResetAll"),
+            
+            btnScenarioPool: document.getElementById("btnScenarioPool"),
+            btnScenarioRace: document.getElementById("btnScenarioRace"),
+            btnScenarioSafe: document.getElementById("btnScenarioSafe"),
+            btnScenarioDeadlock: document.getElementById("btnScenarioDeadlock"),
+            
+            taskName: document.getElementById("taskName"),
+            stepSelector: document.getElementById("stepSelector"),
+            btnAddStep: document.getElementById("btnAddStep"),
+            stepsList: document.getElementById("stepsList"),
+            btnEnqueueCustom: document.getElementById("btnEnqueueCustom"),
+            
+            taskQueueContainer: document.getElementById("taskQueueContainer"),
+            threadPoolContainer: document.getElementById("threadPoolContainer"),
+            resourcesCacheContainer: document.getElementById("resourcesCacheContainer"),
+            svgOverlay: document.getElementById("svgOverlay"),
+            panelCenter: document.getElementById("panelCenter"),
+            simStatusBadge: document.getElementById("simStatusBadge"),
+            expectedBox: document.getElementById("expectedBox"),
+            
+            logContainer: document.getElementById("logContainer"),
+            btnClearLogs: document.getElementById("btnClearLogs")
+        };
     }
 
-    // Hardware-level Spinlock + OS Wait
-    function lock(mutexIdx, mutexName) {
-        log('Attempting to acquire ' + mutexName);
-        Atomics.store(view, STATE, 2); // 2 = WAITING
+    init() {
+        this.speed = 1.0;
+        this.isPlaying = false;
+        this.lastTickTime = 0;
+        this.baseTickInterval = 1000; // 1 second base tick interval
+
+        this.customTaskSteps = [];
+        this.tasksQueue = [];
         
-        // compareExchange: if memory at mutexIdx is 0, set to 1. Returns original value.
-        // If it returns 1, someone else holds the lock.
-        while (Atomics.compareExchange(view, mutexIdx, 0, 1) === 1) {
-            log('Blocked! Waiting on ' + mutexName);
-            // OS-level sleep until notified. The '1' means sleep if value is still '1'.
-            Atomics.wait(view, mutexIdx, 1);
-        }
+        // Define threads
+        this.threads = [
+            { id: 1, state: "idle", currentTask: null, waitingOnResource: null },
+            { id: 2, state: "idle", currentTask: null, waitingOnResource: null },
+            { id: 3, state: "idle", currentTask: null, waitingOnResource: null },
+            { id: 4, state: "idle", currentTask: null, waitingOnResource: null }
+        ];
+
+        // Define resources
+        this.resources = {
+            "A": { id: "A", name: "Resource A (Balance)", lockedBy: null, value: 1000, isBalance: true },
+            "B": { id: "B", name: "Resource B", lockedBy: null, value: 1000 },
+            "C": { id: "C", name: "Resource C", lockedBy: null, value: 0 },
+            "D": { id: "D", name: "Resource D", lockedBy: null, value: 0 }
+        };
+
+        this.bindEvents();
+        this.renderInitialUI();
         
-        Atomics.store(view, STATE, 1); // 1 = WORKING
-        log('Acquired ' + mutexName);
+        // Start animation/tick loop
+        this.animationFrameId = requestAnimationFrame((t) => this.loop(t));
+
+        // Re-draw connections on window resize
+        window.addEventListener("resize", () => this.drawConnections());
     }
 
-    function unlock(mutexIdx, mutexName) {
-        Atomics.store(view, mutexIdx, 0); // Set to unlocked
-        Atomics.notify(view, mutexIdx, 1); // Wake up 1 waiting thread
-        log('Released ' + mutexName);
+    bindEvents() {
+        // Controls
+        this.dom.speedSlider.addEventListener("input", (e) => {
+            this.speed = parseFloat(e.target.value);
+            this.dom.speedValue.textContent = `${this.speed.toFixed(1)}x`;
+            this.log(`Simulation speed adjusted to ${this.speed.toFixed(1)}x`, "sys");
+        });
+
+        this.dom.btnPlayPause.addEventListener("click", () => this.togglePlay());
+        this.dom.btnStep.addEventListener("click", () => this.step());
+        this.dom.btnResetAll.addEventListener("click", () => this.reset());
+
+        // Scenarios
+        this.dom.btnScenarioPool.addEventListener("click", () => this.loadScenarioPool());
+        this.dom.btnScenarioRace.addEventListener("click", () => this.loadScenarioRace());
+        this.dom.btnScenarioSafe.addEventListener("click", () => this.loadScenarioSafe());
+        this.dom.btnScenarioDeadlock.addEventListener("click", () => this.loadScenarioDeadlock());
+
+        // Custom Task Builder
+        this.dom.btnAddStep.addEventListener("click", () => this.addCustomStep());
+        this.dom.btnEnqueueCustom.addEventListener("click", () => this.enqueueCustomTask());
+        this.dom.btnClearLogs.addEventListener("click", () => {
+            this.dom.logContainer.innerHTML = "";
+            this.log("Logs cleared.", "sys");
+        });
     }
 
-    // Simulates CPU time inside a critical section (Busy wait)
-    function simulateWork(ms) {
-        const start = Date.now();
-        while(Date.now() - start < ms) {}
+    renderInitialUI() {
+        this.renderThreadPool();
+        this.renderResources();
+        this.renderQueue();
+        this.drawConnections();
     }
 
-    const modifier = threadId === 1 ? 100 : -100; // T1 deposits, T2 withdraws
+    renderThreadPool() {
+        this.dom.threadPoolContainer.innerHTML = "";
+        this.threads.forEach(thread => {
+            const node = document.createElement("div");
+            node.className = `thread-node state-idle`;
+            node.id = `thread-node-${thread.id}`;
+            node.innerHTML = `
+                <div class="thread-header">
+                    <i class="fas fa-microchip"></i>
+                    <h5>Core ${thread.id}</h5>
+                </div>
+                <span class="thread-status-badge idle">Idle</span>
+                <div class="thread-task-info">
+                    <span class="task-name-text">No active task</span>
+                    <span class="thread-task-step"></span>
+                </div>
+            `;
+            this.dom.threadPoolContainer.appendChild(node);
+        });
+    }
 
-    if (mode === 'race') {
-        log('Started RACE CONDITION execution');
-        Atomics.store(view, STATE, 1);
-        for(let i = 0; i < 5; i++) {
-            // Read
-            let currentBalance = view[BALANCE];
-            // Context Switch / Delay
-            simulateWork(300); 
-            // Write
-            view[BALANCE] = currentBalance + modifier;
+    renderResources() {
+        this.dom.resourcesCacheContainer.innerHTML = "";
+        Object.values(this.resources).forEach(res => {
+            const card = document.createElement("div");
+            card.className = `resource-card unlocked`;
+            card.id = `resource-node-${res.id}`;
+            card.innerHTML = `
+                <div class="resource-title">${res.id}</div>
+                <div class="mutex-badge"><i class="fas fa-lock-open"></i> Mutex ${res.id}</div>
+                <div class="resource-value-display">${res.isBalance ? `$${res.value}` : res.value}</div>
+                <div class="resource-holder-info">Unlocked</div>
+            `;
+            this.dom.resourcesCacheContainer.appendChild(card);
+        });
+    }
+
+    renderQueue() {
+        const queueContainer = this.dom.taskQueueContainer;
+        // Keep elements that are not task cards
+        const nonTaskElements = Array.from(queueContainer.children).filter(el => !el.classList.contains("task-card"));
+        queueContainer.innerHTML = "";
+        nonTaskElements.forEach(el => queueContainer.appendChild(el));
+
+        if (this.tasksQueue.length === 0) {
+            this.dom.taskQueueContainer.innerHTML = `<div class="no-tasks-msg" id="noTasksMsg">Queue is empty. Trigger a scenario or add custom tasks!</div>`;
+            return;
         }
-        Atomics.store(view, STATE, 0); // IDLE
-        log('Finished execution');
+
+        this.tasksQueue.forEach((task, idx) => {
+            const card = document.createElement("div");
+            card.className = `task-card`;
+            
+            // Assign class based on task behavior to color code it
+            let typeClass = "type-compute";
+            if (task.steps.some(s => s.type === "lock" || s.type === "unlock")) {
+                typeClass = "type-rw";
+            }
+            if (task.steps.some(s => s.type === "yield") && task.steps.some(s => s.type === "lock")) {
+                typeClass = "type-deadlock";
+            }
+            card.classList.add(typeClass);
+
+            const stepsDesc = task.steps.map(s => {
+                if (s.type === "lock") return `L(${s.resource})`;
+                if (s.type === "unlock") return `U(${s.resource})`;
+                if (s.type === "read") return `R(${s.resource})`;
+                if (s.type === "write") return `W(${s.resource})`;
+                if (s.type === "yield") return `Yield`;
+                return `Compute`;
+            }).join(" → ");
+
+            card.innerHTML = `
+                <div class="task-name">${task.name}</div>
+                <div class="task-steps-summary" title="${stepsDesc}">${stepsDesc}</div>
+                <span class="task-status-pill" style="background: rgba(255,255,255,0.05); color: var(--text-secondary);">queued</span>
+            `;
+            queueContainer.appendChild(card);
+        });
     }
-    
-    else if (mode === 'safe') {
-        log('Started THREAD-SAFE execution');
-        for(let i = 0; i < 5; i++) {
-            lock(MUTEX_A, 'Mutex A');
-            
-            // Critical Section
-            let currentBalance = view[BALANCE];
-            simulateWork(300);
-            view[BALANCE] = currentBalance + modifier;
-            
-            unlock(MUTEX_A, 'Mutex A');
-            
-            // Brief pause to allow the other thread to grab the lock
-            simulateWork(100); 
+
+    log(msg, type = "sys") {
+        const div = document.createElement("div");
+        div.className = `log-entry ${type}`;
+        div.textContent = `> ${msg}`;
+        this.dom.logContainer.appendChild(div);
+        this.dom.logContainer.scrollTop = this.dom.logContainer.scrollHeight;
+
+        // Cleanup if logs grow too large
+        if (this.dom.logContainer.children.length > 300) {
+            this.dom.logContainer.removeChild(this.dom.logContainer.firstChild);
         }
-        Atomics.store(view, STATE, 0); // IDLE
-        log('Finished execution');
     }
-    
-    else if (mode === 'deadlock') {
-        log('Started DEADLOCK simulation');
-        if (threadId === 1) {
-            lock(MUTEX_A, 'Mutex A');
-            simulateWork(500); // Give T2 time to lock B
-            lock(MUTEX_B, 'Mutex B'); // Will freeze here forever
-            
-            // Unreachable
-            unlock(MUTEX_B, 'Mutex B');
-            unlock(MUTEX_A, 'Mutex A');
+
+    togglePlay() {
+        this.isPlaying = !this.isPlaying;
+        if (this.isPlaying) {
+            this.dom.playIcon.className = "fas fa-pause";
+            this.dom.playText.textContent = "Pause";
+            this.dom.simStatusBadge.textContent = "STATUS: RUNNING";
+            this.dom.simStatusBadge.style.color = "var(--conc-success)";
+            this.dom.simStatusBadge.style.borderColor = "var(--conc-success)";
+            this.log("Simulation started.", "sys");
         } else {
-            lock(MUTEX_B, 'Mutex B');
-            simulateWork(500); // Give T1 time to lock A
-            lock(MUTEX_A, 'Mutex A'); // Will freeze here forever
+            this.dom.playIcon.className = "fas fa-play";
+            this.dom.playText.textContent = "Play";
+            this.dom.simStatusBadge.textContent = "STATUS: PAUSED";
+            this.dom.simStatusBadge.style.color = "var(--conc-warning)";
+            this.dom.simStatusBadge.style.borderColor = "var(--conc-warning)";
+            this.log("Simulation paused.", "sys");
+        }
+    }
+
+    step() {
+        if (this.isPlaying) {
+            this.togglePlay();
+        }
+        this.tick();
+    }
+
+    reset() {
+        this.isPlaying = false;
+        this.dom.playIcon.className = "fas fa-play";
+        this.dom.playText.textContent = "Play";
+        this.dom.simStatusBadge.textContent = "STATUS: READY";
+        this.dom.simStatusBadge.style.color = "var(--conc-accent)";
+        this.dom.simStatusBadge.style.borderColor = "var(--conc-accent)";
+        
+        this.tasksQueue = [];
+        
+        this.threads = [
+            { id: 1, state: "idle", currentTask: null, waitingOnResource: null },
+            { id: 2, state: "idle", currentTask: null, waitingOnResource: null },
+            { id: 3, state: "idle", currentTask: null, waitingOnResource: null },
+            { id: 4, state: "idle", currentTask: null, waitingOnResource: null }
+        ];
+
+        this.resources = {
+            "A": { id: "A", name: "Resource A (Balance)", lockedBy: null, value: 1000, isBalance: true },
+            "B": { id: "B", name: "Resource B", lockedBy: null, value: 1000 },
+            "C": { id: "C", name: "Resource C", lockedBy: null, value: 0 },
+            "D": { id: "D", name: "Resource D", lockedBy: null, value: 0 }
+        };
+
+        this.dom.logContainer.innerHTML = "";
+        this.log("System Reset. Memory cleared and Thread Pool reinitialized.", "sys");
+        
+        this.renderInitialUI();
+    }
+
+    loop(timestamp) {
+        if (this.isPlaying) {
+            const delta = timestamp - this.lastTickTime;
+            const currentInterval = this.baseTickInterval / this.speed;
             
-            // Unreachable
-            unlock(MUTEX_A, 'Mutex A');
-            unlock(MUTEX_B, 'Mutex B');
+            if (delta >= currentInterval) {
+                this.tick();
+                this.lastTickTime = timestamp;
+            }
         }
+        this.animationFrameId = requestAnimationFrame((t) => this.loop(t));
     }
-};
-`;
 
-function createWorkers() {
-    const blob = new Blob([workerCode], { type: 'application/javascript' });
-    const workerUrl = URL.createObjectURL(blob);
-    
-    worker1 = new Worker(workerUrl);
-    worker2 = new Worker(workerUrl);
-
-    // Setup logging receivers
-    worker1.onmessage = (e) => handleWorkerLog(e.data);
-    worker2.onmessage = (e) => handleWorkerLog(e.data);
-}
-
-function handleWorkerLog(data) {
-    if (data.type !== 'log') return;
-    const div = document.createElement('div');
-    div.className = `log-entry t${data.threadId}`;
-    div.textContent = `[Thread ${data.threadId}] ${data.msg}`;
-    els.logContainer.appendChild(div);
-    els.logContainer.scrollTop = els.logContainer.scrollHeight;
-}
-
-function logSys(msg) {
-    const div = document.createElement('div');
-    div.className = `log-entry sys`;
-    div.textContent = `> ${msg}`;
-    els.logContainer.appendChild(div);
-    els.logContainer.scrollTop = els.logContainer.scrollHeight;
-}
-
-// ==========================================
-// 3. UI CONTROLS & RENDER LOOP
-// ==========================================
-function bindEvents() {
-    const disableBtns = () => {
-        els.btnRace.disabled = true;
-        els.btnSafe.disabled = true;
-        els.btnDeadlock.disabled = true;
-        els.memoryVault.classList.remove('corrupted');
-    };
-
-    els.btnRace.addEventListener('click', () => {
-        disableBtns();
-        logSys("Triggering RACE CONDITION. No locks deployed.");
-        worker1.postMessage({ sab, mode: 'race', threadId: 1 });
-        worker2.postMessage({ sab, mode: 'race', threadId: 2 });
-    });
-
-    els.btnSafe.addEventListener('click', () => {
-        disableBtns();
-        logSys("Triggering SAFE EXECUTION. Mutex locks engaged.");
-        worker1.postMessage({ sab, mode: 'safe', threadId: 1 });
-        worker2.postMessage({ sab, mode: 'safe', threadId: 2 });
-    });
-
-    els.btnDeadlock.addEventListener('click', () => {
-        disableBtns();
-        logSys("Triggering MUTUAL DEADLOCK. Threads crossing Mutex requests.");
-        worker1.postMessage({ sab, mode: 'deadlock', threadId: 1 });
-        worker2.postMessage({ sab, mode: 'deadlock', threadId: 2 });
-    });
-
-    els.btnReset.addEventListener('click', () => {
-        // Terminate existing workers to kill any stuck wait() calls
-        if (worker1) worker1.terminate();
-        if (worker2) worker2.terminate();
-        
-        logSys("System Reset. Threads killed. Memory cleared.");
-        
-        // Clean up UI & Memory
-        els.logContainer.innerHTML = '';
-        els.btnRace.disabled = false;
-        els.btnSafe.disabled = false;
-        els.btnDeadlock.disabled = false;
-        els.memoryVault.classList.remove('corrupted');
-        
-        resetMemory();
-        createWorkers(); // Spawn fresh threads
-    });
-}
-
-function startUILoop() {
-    function loop() {
-        if (view) {
-            updateUIFromMemory();
+    // ==========================================
+    // SIMULATION TICK ENGINE
+    // ==========================================
+    tick() {
+        // 1. Assign enqueued tasks to idle threads
+        let updatedQueue = false;
+        for (let thread of this.threads) {
+            if (thread.state === "idle" && this.tasksQueue.length > 0) {
+                const task = this.tasksQueue.shift();
+                task.status = "running";
+                thread.currentTask = task;
+                thread.state = "running";
+                this.log(`Thread ${thread.id} picked up task: ${task.name}`, `t${thread.id}`);
+                updatedQueue = true;
+            }
         }
-        animationReq = requestAnimationFrame(loop);
+        if (updatedQueue) {
+            this.renderQueue();
+        }
+
+        // 2. Execute task steps
+        let stateChanged = false;
+        for (let thread of this.threads) {
+            if (thread.state === "idle") continue;
+
+            const task = thread.currentTask;
+            if (!task) continue;
+
+            const step = task.steps[task.currentStepIndex];
+            if (!step) {
+                // Task is finished
+                this.log(`Thread ${thread.id} completed task: ${task.name}`, `t${thread.id}`);
+                thread.state = "idle";
+                thread.currentTask = null;
+                task.status = "completed";
+                stateChanged = true;
+                continue;
+            }
+
+            // Execute depending on thread state
+            if (thread.state === "waiting" || thread.state === "spinning") {
+                // Check if resource can be acquired now
+                const neededRes = thread.waitingOnResource;
+                const resource = this.resources[neededRes];
+                
+                if (resource.lockedBy === null) {
+                    resource.lockedBy = thread.id;
+                    thread.waitingOnResource = null;
+                    thread.state = "running";
+                    this.log(`Thread ${thread.id} woke up and locked Resource ${neededRes}`, `t${thread.id}`);
+                    task.currentStepIndex++;
+                    stateChanged = true;
+                } else {
+                    // Still waiting or spinning
+                    if (thread.state === "spinning") {
+                        this.log(`Thread ${thread.id} spinning on lock for Resource ${neededRes}...`, `t${thread.id}`);
+                    } else {
+                        this.log(`Thread ${thread.id} blocked, waiting for Resource ${neededRes}`, `t${thread.id}`);
+                    }
+                }
+            } else if (thread.state === "running") {
+                if (step.type === "compute") {
+                    this.log(`Thread ${thread.id} running computation step`, `t${thread.id}`);
+                    task.currentStepIndex++;
+                    stateChanged = true;
+                } else if (step.type === "lock") {
+                    const resId = step.resource;
+                    const resource = this.resources[resId];
+                    
+                    if (resource.lockedBy === null) {
+                        resource.lockedBy = thread.id;
+                        this.log(`Thread ${thread.id} successfully locked Resource ${resId}`, `t${thread.id}`);
+                        task.currentStepIndex++;
+                        stateChanged = true;
+                    } else if (resource.lockedBy === thread.id) {
+                        this.log(`Thread ${thread.id} already holds lock for Resource ${resId}`, `t${thread.id}`);
+                        task.currentStepIndex++;
+                        stateChanged = true;
+                    } else {
+                        // Resource is locked! Block this thread.
+                        // Simulate SPINLOCK vs OS WAIT: if spinlock, thread remains 'spinning'
+                        // Let's decide randomly or make it 'waiting' (OS sleep)
+                        const isSpin = Math.random() > 0.6;
+                        thread.state = isSpin ? "spinning" : "waiting";
+                        thread.waitingOnResource = resId;
+                        this.log(`Thread ${thread.id} BLOCKED! Resource ${resId} is locked by Core ${resource.lockedBy}. Entering ${thread.state.toUpperCase()} state.`, `t${thread.id}`);
+                        stateChanged = true;
+                    }
+                } else if (step.type === "unlock") {
+                    const resId = step.resource;
+                    const resource = this.resources[resId];
+                    
+                    if (resource.lockedBy === thread.id) {
+                        resource.lockedBy = null;
+                        this.log(`Thread ${thread.id} released lock on Resource ${resId}`, `t${thread.id}`);
+                        task.currentStepIndex++;
+                        stateChanged = true;
+                    } else {
+                        this.log(`Error: Thread ${thread.id} tried to unlock Resource ${resId} but did not hold it!`, "err");
+                        task.currentStepIndex++;
+                        stateChanged = true;
+                    }
+                } else if (step.type === "read") {
+                    const resId = step.resource;
+                    task.localVal = this.resources[resId].value;
+                    this.log(`Thread ${thread.id} read Resource ${resId} value = ${task.localVal}`, `t${thread.id}`);
+                    task.currentStepIndex++;
+                    stateChanged = true;
+                } else if (step.type === "write") {
+                    const resId = step.resource;
+                    const oldVal = this.resources[resId].value;
+                    const newVal = step.valueModifier(task.localVal !== undefined ? task.localVal : oldVal);
+                    this.resources[resId].value = newVal;
+                    
+                    this.log(`Thread ${thread.id} wrote Resource ${resId} value: ${oldVal} → ${newVal}`, `t${thread.id}`);
+                    task.currentStepIndex++;
+                    stateChanged = true;
+                } else if (step.type === "yield") {
+                    this.log(`Thread ${thread.id} yielded execution slice (Context Switch)`, `t${thread.id}`);
+                    task.currentStepIndex++;
+                    stateChanged = true;
+                }
+            }
+        }
+
+        // 3. Deadlock Cycle Detection
+        const deadlocks = this.detectDeadlocks();
+        if (deadlocks.length > 0) {
+            this.log(`DEADLOCK IN PROGRESS! Circular wait detected: ${JSON.stringify(deadlocks)}`, "err");
+            this.dom.simStatusBadge.textContent = "STATUS: DEADLOCKED";
+            this.dom.simStatusBadge.style.color = "var(--conc-danger)";
+            this.dom.simStatusBadge.style.borderColor = "var(--conc-danger)";
+            
+            // Mark all threads in the cycle as deadlocked
+            for (let threadId of new Set(deadlocks.flat())) {
+                const thread = this.threads.find(t => t.id === threadId);
+                if (thread && thread.state !== "deadlocked") {
+                    thread.state = "deadlocked";
+                    this.log(`Thread ${thread.id} flagged as DEADLOCKED.`, "err");
+                    stateChanged = true;
+                }
+            }
+        }
+
+        // Update UI
+        this.updateVisuals(deadlocks);
     }
-    loop();
-}
 
-function updateUIFromMemory() {
-    // 1. Update Balance
-    const currentBalance = view[IDX_BALANCE];
-    els.uiBalance.textContent = `$${currentBalance}`;
-    
-    // Highlight corruption if finished and balance is wrong
-    const t1State = view[IDX_STATE_T1];
-    const t2State = view[IDX_STATE_T2];
-    if (t1State === 0 && t2State === 0 && currentBalance !== INITIAL_BALANCE) {
-        els.memoryVault.classList.add('corrupted');
+    detectDeadlocks() {
+        const adj = {};
+        for (let thread of this.threads) {
+            if ((thread.state === "waiting" || thread.state === "spinning" || thread.state === "deadlocked") && thread.waitingOnResource) {
+                const holder = this.resources[thread.waitingOnResource].lockedBy;
+                if (holder !== null) {
+                    adj[thread.id] = holder;
+                }
+            }
+        }
+
+        const cycles = [];
+        const visited = new Set();
+
+        for (let startNode in adj) {
+            const numStart = parseInt(startNode);
+            if (visited.has(numStart)) continue;
+
+            const path = [];
+            const pathSet = new Set();
+            let curr = numStart;
+
+            while (curr !== undefined) {
+                if (pathSet.has(curr)) {
+                    const cycleStartIdx = path.indexOf(curr);
+                    const cycle = path.slice(cycleStartIdx);
+                    cycles.push(cycle);
+                    break;
+                }
+                if (visited.has(curr)) break;
+
+                visited.add(curr);
+                path.push(curr);
+                pathSet.add(curr);
+                curr = adj[curr];
+            }
+        }
+        return cycles;
     }
 
-    // 2. Update Mutex Locks
-    updateMutexUI(els.uiMutex1, els.iconMutex1, view[IDX_MUTEX_A]);
-    updateMutexUI(els.uiMutex2, els.iconMutex2, view[IDX_MUTEX_B]);
+    // ==========================================
+    // UI UPDATES & SVG CONNECTIONS DRAWING
+    // ==========================================
+    updateVisuals(deadlocks = []) {
+        // Update Threads
+        this.threads.forEach(thread => {
+            const el = document.getElementById(`thread-node-${thread.id}`);
+            if (!el) return;
 
-    // 3. Update Thread States (0=Idle, 1=Working, 2=Waiting)
-    // Deadlock detection: If both are waiting, they are deadlocked
-    const isDeadlocked = (t1State === 2 && t2State === 2);
-    
-    updateThreadUI(els.statusT1, t1State, isDeadlocked);
-    updateThreadUI(els.statusT2, t2State, isDeadlocked);
-}
+            // Remove previous state classes
+            el.className = "thread-node";
+            el.classList.add(`state-${thread.state}`);
 
-function updateMutexUI(container, icon, state) {
-    if (state === 1) {
-        container.className = 'mutex-lock locked';
-        icon.className = 'fas fa-lock';
-    } else {
-        container.className = 'mutex-lock unlocked';
-        icon.className = 'fas fa-lock-open';
+            const badge = el.querySelector(".thread-status-badge");
+            badge.className = `thread-status-badge ${thread.state}`;
+            badge.textContent = thread.state;
+
+            const nameText = el.querySelector(".task-name-text");
+            const stepText = el.querySelector(".thread-task-step");
+
+            if (thread.currentTask) {
+                nameText.textContent = thread.currentTask.name;
+                const step = thread.currentTask.steps[thread.currentTask.currentStepIndex];
+                if (step) {
+                    if (step.type === "lock") stepText.textContent = `Acquiring lock ${step.resource}`;
+                    else if (step.type === "unlock") stepText.textContent = `Releasing lock ${step.resource}`;
+                    else if (step.type === "read") stepText.textContent = `Reading ${step.resource}`;
+                    else if (step.type === "write") stepText.textContent = `Writing ${step.resource}`;
+                    else if (step.type === "yield") stepText.textContent = `Yielding CPU`;
+                    else stepText.textContent = `Executing CPU task`;
+                } else {
+                    stepText.textContent = `Wrapping up`;
+                }
+            } else {
+                nameText.textContent = "No active task";
+                stepText.textContent = "";
+            }
+        });
+
+        // Update Resources
+        let hasCorruption = false;
+        Object.values(this.resources).forEach(res => {
+            const card = document.getElementById(`resource-node-${res.id}`);
+            if (!card) return;
+
+            const valDisplay = card.querySelector(".resource-value-display");
+            const holderText = card.querySelector(".resource-holder-info");
+            const badge = card.querySelector(".mutex-badge");
+
+            valDisplay.textContent = res.isBalance ? `$${res.value}` : res.value;
+
+            card.className = "resource-card";
+            if (res.lockedBy !== null) {
+                card.classList.add("locked");
+                badge.innerHTML = `<i class="fas fa-lock"></i> Mutex ${res.id}`;
+                holderText.textContent = `Locked by Core ${res.lockedBy}`;
+            } else {
+                card.classList.add("unlocked");
+                badge.innerHTML = `<i class="fas fa-lock-open"></i> Mutex ${res.id}`;
+                holderText.textContent = "Unlocked";
+            }
+
+            // Flag corruption on Resource A (Balance)
+            if (res.isBalance) {
+                const activeWorkersExist = this.threads.some(t => t.currentTask !== null);
+                if (!activeWorkersExist && res.value !== 1000) {
+                    card.classList.add("corrupted");
+                    hasCorruption = true;
+                }
+            }
+        });
+
+        if (hasCorruption) {
+            this.dom.expectedBox.style.borderColor = "var(--conc-danger)";
+            this.dom.expectedBox.style.color = "var(--conc-danger)";
+            this.dom.expectedBox.innerHTML = `Resource A (Shared Balance) CORRUPTED: <strong>$${this.resources["A"].value}</strong> (expected $1000).`;
+        } else {
+            this.dom.expectedBox.style.borderColor = "var(--glass-border)";
+            this.dom.expectedBox.style.color = "var(--text-secondary)";
+            this.dom.expectedBox.innerHTML = `Resource A (Shared Balance) expected final: <strong>$1000</strong> (if thread-safe).`;
+        }
+
+        // Draw overlay connections
+        this.drawConnections(deadlocks);
     }
-}
 
-function updateThreadUI(statusEl, state, isDeadlocked) {
-    if (isDeadlocked) {
-        statusEl.className = 'thread-status deadlock';
-        statusEl.textContent = 'DEADLOCKED';
-        return;
+    drawConnections(deadlocks = []) {
+        const svg = this.dom.svgOverlay;
+        svg.innerHTML = ""; // Clear canvas
+
+        const centerRect = this.dom.panelCenter.getBoundingClientRect();
+        
+        // Setup markers for arrow heads
+        const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+        
+        const createMarker = (id, color) => {
+            const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+            marker.setAttribute("id", id);
+            marker.setAttribute("viewBox", "0 0 10 10");
+            marker.setAttribute("refX", "6");
+            marker.setAttribute("refY", "5");
+            marker.setAttribute("markerWidth", "6");
+            marker.setAttribute("markerHeight", "6");
+            marker.setAttribute("orient", "auto-start-reverse");
+            
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", "M 0 1 L 10 5 L 0 9 z");
+            path.setAttribute("fill", color);
+            marker.appendChild(path);
+            return marker;
+        };
+
+        defs.appendChild(createMarker("arrow-yellow", "#eab308"));
+        defs.appendChild(createMarker("arrow-green", "#10b981"));
+        defs.appendChild(createMarker("arrow-red", "#ef4444"));
+        svg.appendChild(defs);
+
+        // 1. Draw Lock Ownerships & Waiting relationships
+        this.threads.forEach(thread => {
+            const threadEl = document.getElementById(`thread-node-${thread.id}`);
+            if (!threadEl) return;
+
+            const tRect = threadEl.getBoundingClientRect();
+            const tx = tRect.left + tRect.width / 2 - centerRect.left;
+            const ty = tRect.top + tRect.height / 2 - centerRect.top;
+
+            // If thread is waiting on a resource
+            if (thread.waitingOnResource) {
+                const resEl = document.getElementById(`resource-node-${thread.waitingOnResource}`);
+                if (resEl) {
+                    const rRect = resEl.getBoundingClientRect();
+                    const rx = rRect.left + rRect.width / 2 - centerRect.left;
+                    const ry = rRect.top + rRect.height / 2 - centerRect.top;
+
+                    // Draw line from Thread to Resource (Waiting line)
+                    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    
+                    // Create a curved path to avoid straight overlap
+                    const dx = rx - tx;
+                    const dy = ry - ty;
+                    const cx = tx + dx / 2 - dy * 0.15;
+                    const cy = ty + dy / 2 + dx * 0.15;
+
+                    path.setAttribute("d", `M ${tx} ${ty} Q ${cx} ${cy} ${rx} ${ry}`);
+                    path.setAttribute("class", "svg-line-request");
+                    path.setAttribute("marker-end", "url(#arrow-yellow)");
+                    svg.appendChild(path);
+                }
+            }
+        });
+
+        // For locked resources, draw owner line from Resource to Thread
+        Object.values(this.resources).forEach(res => {
+            if (res.lockedBy !== null) {
+                const resEl = document.getElementById(`resource-node-${res.id}`);
+                const threadEl = document.getElementById(`thread-node-${res.lockedBy}`);
+
+                if (resEl && threadEl) {
+                    const rRect = resEl.getBoundingClientRect();
+                    const rx = rRect.left + rRect.width / 2 - centerRect.left;
+                    const ry = rRect.top + rRect.height / 2 - centerRect.top;
+
+                    const tRect = threadEl.getBoundingClientRect();
+                    const tx = tRect.left + tRect.width / 2 - centerRect.left;
+                    const ty = tRect.top + tRect.height / 2 - centerRect.top;
+
+                    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    
+                    // Curve path slightly
+                    const dx = tx - rx;
+                    const dy = ty - ry;
+                    const cx = rx + dx / 2 + dy * 0.15;
+                    const cy = ry + dy / 2 - dx * 0.15;
+
+                    path.setAttribute("d", `M ${rx} ${ry} Q ${cx} ${cy} ${tx} ${ty}`);
+                    path.setAttribute("class", "svg-line-owner");
+                    path.setAttribute("marker-end", "url(#arrow-green)");
+                    svg.appendChild(path);
+                }
+            }
+        });
+
+        // 2. Draw Deadlock Cycles (if any)
+        deadlocks.forEach(cycle => {
+            // Draw lines connecting the deadlocked thread elements and resources circular
+            const points = [];
+            
+            cycle.forEach(threadId => {
+                const thread = this.threads.find(t => t.id === threadId);
+                if (!thread) return;
+
+                const tEl = document.getElementById(`thread-node-${thread.id}`);
+                if (tEl) {
+                    const tRect = tEl.getBoundingClientRect();
+                    points.push({
+                        x: tRect.left + tRect.width / 2 - centerRect.left,
+                        y: tRect.top + tRect.height / 2 - centerRect.top,
+                        type: "thread",
+                        id: thread.id
+                    });
+                }
+
+                if (thread.waitingOnResource) {
+                    const rEl = document.getElementById(`resource-node-${thread.waitingOnResource}`);
+                    if (rEl) {
+                        const rRect = rEl.getBoundingClientRect();
+                        points.push({
+                            x: rRect.left + rRect.width / 2 - centerRect.left,
+                            y: rRect.top + rRect.height / 2 - centerRect.top,
+                            type: "resource",
+                            id: thread.waitingOnResource
+                        });
+                    }
+                }
+            });
+
+            if (points.length >= 2) {
+                // Connect them in a loop
+                const pathStr = points.map((p, idx) => {
+                    return `${idx === 0 ? "M" : "L"} ${p.x} ${p.y}`;
+                }).join(" ") + " Z";
+
+                const cyclePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                cyclePath.setAttribute("d", pathStr);
+                cyclePath.setAttribute("class", "svg-line-deadlock");
+                cyclePath.setAttribute("marker-end", "url(#arrow-red)");
+                svg.appendChild(cyclePath);
+            }
+        });
     }
 
-    switch(state) {
-        case 0:
-            statusEl.className = 'thread-status idle';
-            statusEl.textContent = 'IDLE';
-            break;
-        case 1:
-            statusEl.className = 'thread-status working';
-            statusEl.textContent = 'WORKING';
-            break;
-        case 2:
-            statusEl.className = 'thread-status waiting';
-            statusEl.textContent = 'WAITING';
-            break;
+    // ==========================================
+    // SCENARIO LOADER FUNCTIONS
+    // ==========================================
+    loadScenarioPool() {
+        this.reset();
+        this.log("Scenario Loaded: Thread Pool Load Balancing Demo.", "sys");
+        this.log("Description: 8 simple computational tasks are queued. Watch the 4 cores split the workload evenly.", "sys");
+
+        for (let i = 1; i <= 8; i++) {
+            // Random duration represented by number of compute steps
+            const stepsCount = Math.floor(Math.random() * 3) + 2; // 2 to 4 steps
+            const steps = [];
+            for (let s = 0; s < stepsCount; s++) {
+                steps.push({ type: "compute" });
+            }
+
+            this.tasksQueue.push({
+                name: `ComputeTask-${i}`,
+                steps: steps,
+                status: "queued",
+                currentStepIndex: 0
+            });
+        }
+
+        this.renderQueue();
+        this.togglePlay();
+    }
+
+    loadScenarioRace() {
+        this.reset();
+        this.log("Scenario Loaded: Race Condition (Unsafe).", "sys");
+        this.log("Description: deposit and withdraw tasks will execute concurrently on Resource A without any mutex locks. A context switch is forced mid-operation, resulting in balance corruption.", "sys");
+
+        this.resources["A"].value = 1000;
+
+        // DepositTask
+        this.tasksQueue.push({
+            name: "DepositTask (Core 1)",
+            steps: [
+                { type: "read", resource: "A" },
+                { type: "yield" }, // Force context switch
+                { type: "write", resource: "A", valueModifier: (val) => val + 100 }
+            ],
+            status: "queued",
+            currentStepIndex: 0
+        });
+
+        // WithdrawTask
+        this.tasksQueue.push({
+            name: "WithdrawTask (Core 2)",
+            steps: [
+                { type: "read", resource: "A" },
+                { type: "yield" }, // Force context switch
+                { type: "write", resource: "A", valueModifier: (val) => val - 100 }
+            ],
+            status: "queued",
+            currentStepIndex: 0
+        });
+
+        this.renderQueue();
+        this.renderResources();
+        this.togglePlay();
+    }
+
+    loadScenarioSafe() {
+        this.reset();
+        this.log("Scenario Loaded: Thread-Safe Mutex Execution.", "sys");
+        this.log("Description: Same deposit/withdraw tasks, but wrapped inside Lock/Unlock commands for Mutex A. Core 2 is blocked until Core 1 finishes writing and unlocks Mutex A.", "sys");
+
+        this.resources["A"].value = 1000;
+
+        // SafeDepositTask
+        this.tasksQueue.push({
+            name: "SafeDepositTask",
+            steps: [
+                { type: "lock", resource: "A" },
+                { type: "read", resource: "A" },
+                { type: "yield" },
+                { type: "write", resource: "A", valueModifier: (val) => val + 100 },
+                { type: "unlock", resource: "A" }
+            ],
+            status: "queued",
+            currentStepIndex: 0
+        });
+
+        // SafeWithdrawTask
+        this.tasksQueue.push({
+            name: "SafeWithdrawTask",
+            steps: [
+                { type: "lock", resource: "A" },
+                { type: "read", resource: "A" },
+                { type: "yield" },
+                { type: "write", resource: "A", valueModifier: (val) => val - 100 },
+                { type: "unlock", resource: "A" }
+            ],
+            status: "queued",
+            currentStepIndex: 0
+        });
+
+        this.renderQueue();
+        this.renderResources();
+        this.togglePlay();
+    }
+
+    loadScenarioDeadlock() {
+        this.reset();
+        this.log("Scenario Loaded: Mutual Deadlock.", "sys");
+        this.log("Description: Thread 1 locks Mutex A, then yields to Thread 2 which locks Mutex B. Thread 1 requests Mutex B (blocked) while Thread 2 requests Mutex A (blocked). Circle is drawn.", "sys");
+
+        // Thread 1: Lock A, lock B
+        this.tasksQueue.push({
+            name: "DeadlockTask-1",
+            steps: [
+                { type: "lock", resource: "A" },
+                { type: "yield" },
+                { type: "lock", resource: "B" },
+                { type: "unlock", resource: "B" },
+                { type: "unlock", resource: "A" }
+            ],
+            status: "queued",
+            currentStepIndex: 0
+        });
+
+        // Thread 2: Lock B, lock A
+        this.tasksQueue.push({
+            name: "DeadlockTask-2",
+            steps: [
+                { type: "lock", resource: "B" },
+                { type: "yield" },
+                { type: "lock", resource: "A" },
+                { type: "unlock", resource: "A" },
+                { type: "unlock", resource: "B" }
+            ],
+            status: "queued",
+            currentStepIndex: 0
+        });
+
+        this.renderQueue();
+        this.togglePlay();
+    }
+
+    // ==========================================
+    // CUSTOM TASK CREATOR
+    // ==========================================
+    addCustomStep() {
+        const stepVal = this.dom.stepSelector.value;
+        let stepText = "";
+        let stepObj = {};
+
+        if (stepVal === "compute") {
+            stepText = "Compute";
+            stepObj = { type: "compute" };
+        } else if (stepVal === "lock_A") {
+            stepText = "Lock Mutex A";
+            stepObj = { type: "lock", resource: "A" };
+        } else if (stepVal === "lock_B") {
+            stepText = "Lock Mutex B";
+            stepObj = { type: "lock", resource: "B" };
+        } else if (stepVal === "unlock_A") {
+            stepText = "Unlock Mutex A";
+            stepObj = { type: "unlock", resource: "A" };
+        } else if (stepVal === "unlock_B") {
+            stepText = "Unlock Mutex B";
+            stepObj = { type: "unlock", resource: "B" };
+        } else if (stepVal === "read_A") {
+            stepText = "Read A";
+            stepObj = { type: "read", resource: "A" };
+        } else if (stepVal === "write_A") {
+            stepText = "Write A (+/- 50)";
+            // Let custom write adjust value randomly +50 or -50 for visual effect
+            const mod = Math.random() > 0.5 ? 50 : -50;
+            stepObj = { type: "write", resource: "A", valueModifier: (val) => val + mod };
+        } else if (stepVal === "yield") {
+            stepText = "Yield (CPU)";
+            stepObj = { type: "yield" };
+        }
+
+        this.customTaskSteps.push(stepObj);
+        this.renderCustomSteps();
+    }
+
+    renderCustomSteps() {
+        const stepsContainer = this.dom.stepsList;
+        stepsContainer.innerHTML = "";
+        
+        if (this.customTaskSteps.length === 0) {
+            stepsContainer.innerHTML = `<div class="no-steps-placeholder">No steps added yet. Click '+' to build.</div>`;
+            return;
+        }
+
+        this.customTaskSteps.forEach((step, idx) => {
+            const pill = document.createElement("div");
+            pill.className = "step-pill";
+            
+            let label = "Step";
+            if (step.type === "compute") label = "Compute";
+            else if (step.type === "lock") label = `Lock ${step.resource}`;
+            else if (step.type === "unlock") label = `Unlock ${step.resource}`;
+            else if (step.type === "read") label = `Read ${step.resource}`;
+            else if (step.type === "write") label = `Write ${step.resource}`;
+            else if (step.type === "yield") label = "Yield";
+
+            pill.innerHTML = `
+                <span>${idx + 1}. ${label}</span>
+                <button onclick="window.simulator.removeCustomStep(${idx})"><i class="fas fa-times"></i></button>
+            `;
+            stepsContainer.appendChild(pill);
+        });
+    }
+
+    removeCustomStep(index) {
+        this.customTaskSteps.splice(index, 1);
+        this.renderCustomSteps();
+    }
+
+    enqueueCustomTask() {
+        const name = this.dom.taskName.value.trim() || "CustomTask";
+        if (this.customTaskSteps.length === 0) {
+            this.log("Error: Cannot enqueue task with no steps.", "err");
+            alert("Please add at least one step to build a task!");
+            return;
+        }
+
+        const task = {
+            name: `${name} (${this.tasksQueue.length + 1})`,
+            steps: [...this.customTaskSteps],
+            status: "queued",
+            currentStepIndex: 0
+        };
+
+        this.tasksQueue.push(task);
+        this.log(`Enqueued custom task: ${task.name}`, "sys");
+        
+        // Reset builder state
+        this.customTaskSteps = [];
+        this.renderCustomSteps();
+        this.renderQueue();
     }
 }
