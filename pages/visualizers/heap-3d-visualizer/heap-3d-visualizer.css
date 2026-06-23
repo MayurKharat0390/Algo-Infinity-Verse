@@ -496,7 +496,7 @@ body.heap-body {
 .log-entry {
     line-height: 1.4;
     color: #94a3b8;
-    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 .log-entry.sys { color: #64748b; }
 .log-entry.comp { color: var(--conc-warning); }
