@@ -732,11 +732,12 @@ function stPromptUpdate(idx) {
   var inputVal = prompt('Enter new value for index ' + idx + ' (current value: ' + currentVal + '):', currentVal);
   if (inputVal === null) return;
   
-  var val = parseInt(inputVal.trim());
-  if (isNaN(val)) {
+  var trimmedInput = inputVal.trim();
+  if (!/^-?\d+$/.test(trimmedInput)) {
     alert('Please enter a valid integer.');
     return;
   }
+  var val = Number(trimmedInput);
   
   var idxEl = document.getElementById('stUpdateIdx');
   var valEl = document.getElementById('stUpdateVal');
