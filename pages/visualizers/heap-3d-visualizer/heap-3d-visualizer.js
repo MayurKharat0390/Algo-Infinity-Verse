@@ -147,6 +147,8 @@ class Heap3DVisualizer {
         this.mode = mode;
         this.dom.btnMinMode.classList.toggle("active", mode === "min");
         this.dom.btnMaxMode.classList.toggle("active", mode === "max");
+        this.dom.btnMinMode.setAttribute("aria-pressed", String(mode === "min"));
+        this.dom.btnMaxMode.setAttribute("aria-pressed", String(mode === "max"));
         this.log(`Heap Mode changed to: ${mode.toUpperCase()}-HEAP`, "sys");
 
         // Re-heapify current tree
