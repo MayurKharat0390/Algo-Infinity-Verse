@@ -416,9 +416,11 @@ function stRenderArray() {
   }
 
   for (var i = 0; i < stState.n; i++) {
-    var cell = document.createElement('div');
+    var cell = document.createElement('button');
+    cell.type = 'button';
     cell.className = 'st-array-cell ' + cellClasses[i];
     cell.setAttribute('data-idx', i);
+    cell.setAttribute('aria-label', 'Update index ' + i + ', current value ' + stState.arr[i]);
     
     if (stState.hoveredIndex === i) {
       cell.classList.add('highlight-active');
