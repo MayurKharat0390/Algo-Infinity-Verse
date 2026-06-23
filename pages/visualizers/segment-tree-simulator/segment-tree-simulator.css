@@ -332,6 +332,12 @@
   transform: translateY(-2px);
 }
 
+.st-array-cell:focus-visible {
+  outline: 2px solid `#22c55e`;
+  outline-offset: 2px;
+  border-color: `#22c55e`;
+}
+
 .st-cell-idx {
   font-family: Orbitron, sans-serif;
   font-size: 0.72rem;
